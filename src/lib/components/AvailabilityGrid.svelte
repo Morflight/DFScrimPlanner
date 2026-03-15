@@ -78,13 +78,13 @@
 		const type = slotTypes.get(k);
 		let bg: string;
 		if (readonly) {
-			if (type === 'scrim') bg = 'bg-blue-600';
-			else if (type === 'short') bg = 'bg-neutral-800';
-			else bg = 'bg-muted';
+			if (type === 'scrim') bg = 'bg-blue-500 dark:bg-blue-600';
+			else if (type === 'short') bg = 'bg-blue-200 dark:bg-blue-950';
+			else bg = 'bg-zinc-100 dark:bg-zinc-800';
 		} else {
-			if (type === 'scrim') bg = 'bg-blue-600 hover:bg-blue-500';
-			else if (type === 'short') bg = 'bg-neutral-800 hover:bg-neutral-700';
-			else bg = 'bg-muted hover:bg-primary/20';
+			if (type === 'scrim') bg = 'bg-blue-500 hover:bg-blue-400 dark:bg-blue-600 dark:hover:bg-blue-500';
+			else if (type === 'short') bg = 'bg-blue-200 hover:bg-blue-300 dark:bg-blue-950 dark:hover:bg-blue-900';
+			else bg = 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700';
 		}
 
 		return [
