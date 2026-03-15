@@ -9,7 +9,8 @@
 		{ href: '/availability', label: 'Availability' },
 		{ href: '/team', label: 'My Team' },
 		{ href: '/scrims', label: 'Scrims' },
-		{ href: '/fillers', label: 'Fillers' }
+		{ href: '/fillers', label: 'Fillers' },
+		{ href: '/profile', label: 'Profile' }
 	];
 </script>
 

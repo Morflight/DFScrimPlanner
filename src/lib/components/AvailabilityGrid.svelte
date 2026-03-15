@@ -10,11 +10,13 @@
 	let {
 		days,
 		selectedSlots,
-		onchange
+		onchange,
+		readonly = false
 	}: {
 		days: Day[];
 		selectedSlots: Set<string>;
 		onchange: (slots: Set<string>) => void;
+		readonly?: boolean;
 	} = $props();
 
 	let isDragging = $state(false);
@@ -25,6 +27,7 @@
 	}
 
 	function onMouseDown(k: string, e: MouseEvent) {
+		if (readonly) return;
 		e.preventDefault();
 		isDragging = true;
 		dragMode = selectedSlots.has(k) ? 'deselect' : 'select';
@@ -32,7 +35,7 @@
 	}
 
 	function onMouseEnter(k: string) {
-		if (!isDragging) return;
+		if (readonly || !isDragging) return;
 		applySlot(k);
 	}
 
@@ -42,46 +45,104 @@
 		else next.delete(k);
 		onchange(next);
 	}
+
+	// For each selected slot, compute whether it belongs to a contiguous run ≥ 6 slots (3h).
+	// 'scrim' = run is long enough to hold a scrim; 'short' = too short.
+	const slotTypes = $derived.by(() => {
+		const result = new Map<string, 'scrim' | 'short'>();
+
+		for (const day of days) {
+			// Collect indices of selected slots for this day, in order
+			const selected: number[] = [];
+			for (let i = 0; i < SLOTS.length; i++) {
+				if (selectedSlots.has(slotKey(day.dateStr, SLOTS[i]))) selected.push(i);
+			}
+
+			// Walk contiguous runs (consecutive slot indices)
+			let i = 0;
+			while (i < selected.length) {
+				let j = i;
+				while (j + 1 < selected.length && selected[j + 1] === selected[j] + 1) j++;
+				const type = j - i + 1 >= 6 ? 'scrim' : 'short';
+				for (let k = i; k <= j; k++) {
+					result.set(slotKey(day.dateStr, SLOTS[selected[k]]), type);
+				}
+				i = j + 1;
+			}
+		}
+
+		return result;
+	});
+
+	function cellClass(k: string, isHour: boolean, isLastDay: boolean): string {
+		const type = slotTypes.get(k);
+		let bg: string;
+		if (readonly) {
+			if (type === 'scrim') bg = 'bg-blue-600';
+			else if (type === 'short') bg = 'bg-neutral-800';
+			else bg = 'bg-muted';
+		} else {
+			if (type === 'scrim') bg = 'bg-blue-600 hover:bg-blue-500';
+			else if (type === 'short') bg = 'bg-neutral-800 hover:bg-neutral-700';
+			else bg = 'bg-muted hover:bg-primary/20';
+		}
+
+		return [
+			`border-b border-r border-border ${readonly ? 'cursor-default' : 'cursor-pointer'} transition-colors duration-75`,
+			bg,
+			isHour ? 'border-l' : '',
+			isLastDay ? 'border-b-0' : ''
+		]
+			.filter(Boolean)
+			.join(' ');
+	}
 </script>
 
 <svelte:window onmouseup={() => (isDragging = false)} />
 
-<div class="overflow-auto rounded-md border border-border" style="max-height: 65vh;">
-	<table class="border-collapse text-xs w-full" style="user-select: none;">
+<div class="overflow-auto rounded-md border border-border p-1">
+	<table
+		class="border-collapse text-xs w-full"
+		style="table-layout: fixed; min-width: 52rem; user-select: none;"
+	>
 		<thead class="sticky top-0 z-20">
 			<tr>
 				<th
-					class="sticky left-0 z-30 bg-card border-b border-r border-border w-14 px-2 py-2 text-left font-normal text-muted-foreground"
+					class="sticky left-0 z-30 bg-card border-b border-r border-border px-2 py-2 text-left font-normal text-muted-foreground"
+					style="width: 5rem;"
 				></th>
-				{#each days as day}
+				{#each SLOTS as time}
+					{@const isHour = time.endsWith(':00')}
 					<th
-						class="bg-card border-b border-r border-border last:border-r-0 px-1 py-2 text-center min-w-[4.5rem]"
+						class="bg-card border-b border-r border-border text-center font-normal text-muted-foreground {isHour
+							? 'border-l'
+							: ''}"
+						style="padding: 0.25rem 0;"
 					>
-						<div class="font-semibold text-foreground">{day.label}</div>
-						<div class="text-[10px] text-muted-foreground mt-0.5">{day.sub}</div>
+						{#if isHour}<span class="text-[9px]">{time.slice(0, 2)}</span>{/if}
 					</th>
 				{/each}
 			</tr>
 		</thead>
 		<tbody>
-			{#each SLOTS as time}
-				{@const isHour = time.endsWith(':00')}
+			{#each days as day, di}
 				<tr>
 					<td
-						class="sticky left-0 z-10 bg-card border-r border-b border-border px-2 text-right text-muted-foreground leading-none w-14"
-						class:border-t={isHour}
-						style="height: 1.375rem;"
+						class="sticky left-0 z-10 bg-card border-r border-b border-border px-2 text-muted-foreground leading-tight {di ===
+						days.length - 1
+							? 'border-b-0'
+							: ''}"
+						style="padding-top: 0.35rem; padding-bottom: 0.35rem;"
 					>
-						{#if isHour}<span class="text-[11px]">{time}</span>{/if}
+						<div class="font-semibold text-foreground text-[11px]">{day.label}</div>
+						<div class="text-[10px]">{day.sub}</div>
 					</td>
-					{#each days as day, di}
+					{#each SLOTS as time}
+						{@const isHour = time.endsWith(':00')}
 						{@const k = slotKey(day.dateStr, time)}
-						{@const selected = selectedSlots.has(k)}
 						<td
-							class="border-b border-r border-border cursor-pointer transition-colors duration-75 {selected
-								? 'bg-primary hover:bg-primary/80'
-								: 'bg-muted hover:bg-primary/20'} {isHour ? 'border-t' : ''} {di === days.length - 1 ? 'border-r-0' : ''}"
-							style="height: 1.375rem;"
+							class={cellClass(k, isHour, di === days.length - 1)}
+							style="height: 2rem;"
 							onmousedown={(e) => onMouseDown(k, e)}
 							onmouseenter={() => onMouseEnter(k)}
 						></td>

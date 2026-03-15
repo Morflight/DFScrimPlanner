@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { slotsFromWindow, weekStart } from '$lib/utils/timezone';
 
 export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -37,7 +38,77 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		pendingInvites = (memberRows ?? []).filter((m: any) => m.status === 'invited');
 	}
 
-	return { team, isLeader, members, pendingInvites };
+	// Fetch viewer's timezone
+	const { data: profile } = await supabase
+		.from('profiles')
+		.select('timezone')
+		.eq('id', user!.id)
+		.single();
+	const viewerTz = profile?.timezone ?? 'UTC';
+
+	// Build grid days for the current week (Mon–Sun) in the viewer's timezone
+	const start = weekStart(viewerTz);
+	const validDates = new Set<string>();
+	const dateFmt = new Intl.DateTimeFormat('en-US', {
+		timeZone: viewerTz,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
+	const gridDays = Array.from({ length: 7 }, (_, i) => {
+		const d = new Date(start);
+		d.setDate(start.getDate() + i);
+		const parts = dateFmt.formatToParts(d);
+		const y = parts.find((p) => p.type === 'year')?.value ?? '';
+		const mo = parts.find((p) => p.type === 'month')?.value ?? '';
+		const dy = parts.find((p) => p.type === 'day')?.value ?? '';
+		const dateStr = `${y}-${mo}-${dy}`;
+		validDates.add(dateStr);
+		return {
+			dateStr,
+			label: new Intl.DateTimeFormat('en-US', { timeZone: viewerTz, weekday: 'short' }).format(d),
+			sub: new Intl.DateTimeFormat('en-US', { timeZone: viewerTz, month: 'short', day: 'numeric' }).format(d)
+		};
+	});
+
+	// Compute team availability: intersection of all active members' availability slots
+	let teamSlots: string[] = [];
+	const memberUserIds = members
+		.filter((m: any) => m.user_id)
+		.map((m: any) => m.user_id as string);
+
+	if (memberUserIds.length > 0) {
+		const weekStart_ = start.toISOString();
+		const weekEnd_ = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+		const { data: allAvails } = await supabaseAdmin
+			.from('availabilities')
+			.select('user_id, starts_at, ends_at')
+			.in('user_id', memberUserIds)
+			.lt('starts_at', weekEnd_)
+			.gt('ends_at', weekStart_);
+
+		// Build slot set per member
+		const slotsByMember = new Map<string, Set<string>>();
+		for (const uid of memberUserIds) slotsByMember.set(uid, new Set());
+		for (const avail of allAvails ?? []) {
+			const slots = slotsFromWindow(avail.starts_at, avail.ends_at, viewerTz, validDates);
+			const s = slotsByMember.get(avail.user_id);
+			if (s) for (const k of slots) s.add(k);
+		}
+
+		// Intersect all members' sets
+		const sets = [...slotsByMember.values()];
+		const intersection = new Set(sets[0]);
+		for (let i = 1; i < sets.length; i++) {
+			for (const slot of intersection) {
+				if (!sets[i].has(slot)) intersection.delete(slot);
+			}
+		}
+		teamSlots = Array.from(intersection);
+	}
+
+	return { team, isLeader, members, pendingInvites, teamSlots, gridDays };
 };
 
 export const actions: Actions = {

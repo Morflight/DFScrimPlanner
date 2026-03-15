@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
+	import AvailabilityGrid from '$lib/components/AvailabilityGrid.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let creatingTeam = $state(false);
 	let inviting = $state(false);
 	let removing = $state<string | null>(null);
+
+	const teamSlotSet = $derived(new Set(data.teamSlots ?? []));
 </script>
 
 <div class="p-8 max-w-3xl space-y-8">
@@ -106,6 +109,32 @@
 				</div>
 			</section>
 		{/if}
+
+		<!-- Team Availability -->
+		<section class="space-y-3">
+			<div class="flex items-baseline gap-2">
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Team Availability</h3>
+				<span class="text-xs text-muted-foreground">slots where every member is free (current week)</span>
+			</div>
+			{#if data.members.length < 2}
+				<p class="text-sm text-muted-foreground">Add at least two active members to see shared availability.</p>
+			{:else if data.teamSlots.length === 0}
+				<p class="text-sm text-muted-foreground">No overlapping availability this week.</p>
+				<AvailabilityGrid
+					days={data.gridDays}
+					selectedSlots={teamSlotSet}
+					onchange={() => {}}
+					readonly={true}
+				/>
+			{:else}
+				<AvailabilityGrid
+					days={data.gridDays}
+					selectedSlots={teamSlotSet}
+					onchange={() => {}}
+					readonly={true}
+				/>
+			{/if}
+		</section>
 
 		<!-- Invite member (leader only) -->
 		{#if data.isLeader}
