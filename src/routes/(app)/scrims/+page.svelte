@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
+	import TeamScrimCalendar from '$lib/components/TeamScrimCalendar.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -9,13 +10,46 @@
 	let searching = $state(false);
 	let creating = $state(false);
 
-	// Time-first state
-	let slotStart = $state('');
+	// Calendar slot selection (slot key = "YYYY-MM-DDTHH:MM" in viewer tz)
+	let selectedSlot = $state<string | null>(null);
 
-	// Teams-first state
-	let teamA = $state('');
-	let teamB = $state('');
+	// Teams picked from results (max 2)
+	let pickedTeams = $state<string[]>([]);
 
+	// Pick-teams state
+	let ptTeams = $state<string[]>([]);
+	let ptSlot = $state<string | null>(null);
+
+	// Persist time-first results across the create-scrim action
+	let savedResults = $state<{
+		teams: { id: string; name: string }[];
+		fillers: { id: string; username: string; timezone: string }[];
+		slotStart: string;
+	} | null>(null);
+
+	$effect(() => {
+		if ((form as any)?.timeFirstResults !== undefined) {
+			savedResults = {
+				teams: (form as any).timeFirstResults ?? [],
+				fillers: (form as any).fillerResults ?? [],
+				slotStart: (form as any).slotStart ?? ''
+			};
+			pickedTeams = [];
+		}
+	});
+
+	// Convert slot key ("YYYY-MM-DDTHH:MM" in viewer tz) to UTC ISO
+	function slotKeyToUtc(slotKey: string): string {
+		const localDt = slotKey; // "YYYY-MM-DDTHH:MM"
+		const tzDate = new Date(
+			new Date(localDt + ':00Z').toLocaleString('en-US', { timeZone: tz })
+		);
+		const tzUtc = new Date(localDt + ':00Z');
+		const offsetMs = tzDate.getTime() - tzUtc.getTime();
+		return new Date(new Date(localDt + ':00Z').getTime() - offsetMs).toISOString();
+	}
+
+	// Format a UTC ISO string in viewer tz
 	function fmt(iso: string) {
 		return new Intl.DateTimeFormat('en-US', {
 			timeZone: tz,
@@ -28,22 +62,62 @@
 		}).format(new Date(iso));
 	}
 
-	// Convert datetime-local (local tz) to UTC ISO
-	function localToUtc(localDt: string): string {
-		const tzDate = new Date(new Date(localDt + ':00Z').toLocaleString('en-US', { timeZone: tz }));
-		const tzUtc = new Date(localDt + ':00Z');
-		const offsetMs = tzDate.getTime() - tzUtc.getTime();
-		return new Date(new Date(localDt + ':00Z').getTime() - offsetMs).toISOString();
+	// Format selected slot key as "Mon Mar 16, 17:00 – 20:00"
+	function fmtSlotKey(slotKey: string): string {
+		const sepIdx = slotKey.indexOf('T');
+		const datePart = slotKey.slice(0, sepIdx);
+		const timePart = slotKey.slice(sepIdx + 1);
+		const [h, m] = timePart.split(':').map(Number);
+		const endTotalMin = h * 60 + m + 180;
+		const endH = Math.floor(endTotalMin / 60) % 24;
+		const endM = endTotalMin % 60;
+		const startStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+		const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+		// Parse date as UTC to get weekday/month labels (date string is already in viewer tz)
+		const d = new Date(datePart + 'T00:00:00Z');
+		const dayLabel = new Intl.DateTimeFormat('en-US', {
+			timeZone: 'UTC',
+			weekday: 'short',
+			month: 'short',
+			day: 'numeric'
+		}).format(d);
+		return `${dayLabel}, ${startStr} – ${endStr}`;
 	}
 
-	const timeFirstResults: { id: string; name: string }[] = $derived((form as any)?.timeFirstResults ?? []);
-	const teamsFirstResults: { starts_at: string }[] = $derived((form as any)?.teamsFirstResults ?? []);
+	function toggleTeam(id: string) {
+		if (pickedTeams.includes(id)) {
+			pickedTeams = pickedTeams.filter((t) => t !== id);
+		} else if (pickedTeams.length < 6) {
+			pickedTeams = [...pickedTeams, id];
+		}
+	}
+
+	// Viewer's own team members with slotSets (for time-first calendar)
+	const myTeamMemberSlots = $derived(
+		(data.myTeamMembers ?? []).map((m) => ({ ...m, slotSet: new Set(m.slots) }))
+	);
+
+	// Teams visible in the pick-teams grid (those selected as chips)
+	const ptGridTeams = $derived(
+		(data.teamSlotData ?? [])
+			.filter((t) => ptTeams.includes(t.id))
+			.map((t) => ({ ...t, slotSet: new Set(t.slots) }))
+	);
+
+	function togglePtTeam(id: string) {
+		if (ptTeams.includes(id)) {
+			ptTeams = ptTeams.filter((t) => t !== id);
+			ptSlot = null;
+		} else if (ptTeams.length < 6) {
+			ptTeams = [...ptTeams, id];
+		}
+	}
 </script>
 
-<div class="p-8 max-w-4xl space-y-8">
+<div class="p-8 max-w-6xl space-y-6">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">Scrim Planner</h1>
-		<p class="text-sm text-muted-foreground mt-1">Find and schedule 3-hour scrims.</p>
+		<p class="text-sm text-muted-foreground mt-1">Schedule 3-hour scrims between teams.</p>
 	</div>
 
 	<!-- Tabs -->
@@ -52,170 +126,297 @@
 			<button
 				onclick={() => (tab = t)}
 				class="pb-2 text-sm font-medium transition-colors border-b-2 -mb-px
-					{tab === t ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+					{tab === t
+					? 'border-primary text-foreground'
+					: 'border-transparent text-muted-foreground hover:text-foreground'}"
 			>
-				{t === 'time-first' ? 'Time-first' : 'Teams-first'}
+				{t === 'time-first' ? 'Pick a time' : 'Pick teams'}
 			</button>
 		{/each}
 	</div>
 
 	{#if tab === 'time-first'}
-		<!-- TIME-FIRST: pick a slot, see available teams -->
+		<!-- ── PICK A TIME ─────────────────────────────────────────── -->
 		<section class="space-y-4">
-			<p class="text-sm text-muted-foreground">Pick a start time and see which teams are available for a 3-hour scrim.</p>
-			{#if form?.timeFirstError}
-				<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{form.timeFirstError}</p>
-			{/if}
-			<form
-				method="POST"
-				action="?/time-first"
-				use:enhance={({ formData }) => {
-					const local = formData.get('slot_start_local') as string;
-					formData.set('slot_start', localToUtc(local));
-					searching = true;
-					return async ({ update }) => { searching = false; await update(); };
-				}}
-				class="flex gap-3 items-end"
-			>
-				<div class="space-y-1">
-					<label class="text-xs font-medium text-muted-foreground" for="slot-time">Slot start ({tz})</label>
-					<input
-						id="slot-time"
-						name="slot_start_local"
-						type="datetime-local"
-						required
-						bind:value={slotStart}
-						class="px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-					/>
-				</div>
-				<button
-					type="submit"
-					disabled={searching}
-					class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-				>
-					{searching ? 'Searching…' : 'Find teams'}
-				</button>
-			</form>
+			<p class="text-sm text-muted-foreground">
+				Click a slot to select a 3-hour scrim window, then confirm to see available teams.
+			</p>
 
-			{#if timeFirstResults.length > 0}
-				<div class="space-y-3 pt-2">
-					<p class="text-sm font-medium">{timeFirstResults.length} team(s) available for {fmt((form as any).slotStart)}</p>
-					{#each timeFirstResults as team}
-						<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
-							<p class="text-sm font-medium">{team.name}</p>
-							<form
-								method="POST"
-								action="?/create-scrim"
-								use:enhance={() => {
-									creating = true;
-									return async ({ update }) => { creating = false; await update(); };
-								}}
-							>
-								<input type="hidden" name="starts_at" value={(form as any).slotStart} />
-								<input type="hidden" name="team_a" value={team.id} />
-								<!-- Team B must be selected — for now pick from remaining results -->
-								<select name="team_b" required class="mr-2 px-2 py-1 border border-input rounded text-xs bg-background">
-									<option value="">vs. team…</option>
-									{#each timeFirstResults.filter((t) => t.id !== team.id) as opponent}
-										<option value={opponent.id}>{opponent.name}</option>
-									{/each}
-								</select>
-								<button
-									type="submit"
-									disabled={creating}
-									class="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-								>
-									Schedule
-								</button>
-							</form>
+			{#if myTeamMemberSlots.length > 0}
+				<TeamScrimCalendar
+					days={data.gridDays}
+					teams={myTeamMemberSlots}
+					{selectedSlot}
+					restrictToAvailable={true}
+					entryLabel="member"
+					onselect={(s) => {
+						selectedSlot = s;
+						savedResults = null;
+						pickedTeams = [];
+					}}
+				/>
+			{:else}
+				<p class="text-sm text-amber-500 bg-amber-500/10 px-3 py-2 rounded-md">
+					You need to be part of a team to use this view. Your team's availability will appear here.
+				</p>
+			{/if}
+
+			<!-- Selected slot summary + confirm -->
+			<div class="flex items-center gap-4 pt-1">
+				{#if selectedSlot}
+					<span class="text-sm font-medium">{fmtSlotKey(selectedSlot)}</span>
+				{:else}
+					<span class="text-sm text-muted-foreground">No slot selected</span>
+				{/if}
+
+				{#if form?.timeFirstError}
+					<span class="text-sm text-destructive">{form.timeFirstError}</span>
+				{/if}
+
+				<form
+					method="POST"
+					action="?/time-first"
+					use:enhance={({ formData }) => {
+						formData.set('slot_start', slotKeyToUtc(selectedSlot!));
+						searching = true;
+						return async ({ update }) => {
+							searching = false;
+							await update();
+						};
+					}}
+				>
+					<input type="hidden" name="slot_start" value="" />
+					<button
+						type="submit"
+						disabled={!selectedSlot || searching}
+						class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+					>
+						{searching ? 'Searching…' : 'Find teams'}
+					</button>
+				</form>
+			</div>
+
+			<!-- Results -->
+			{#if savedResults}
+				<div class="space-y-5 pt-2 border-t border-border">
+					<p class="text-sm text-muted-foreground pt-4">
+						Results for <span class="font-medium text-foreground"
+							>{fmtSlotKey(savedResults.slotStart.slice(0, 16))}</span
+						>
+					</p>
+
+					<!-- Teams -->
+					{#if savedResults.teams.length === 0}
+						<div class="space-y-1">
+							<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+								Available teams
+							</h3>
+							<p class="text-sm text-muted-foreground">No teams are available for this slot.</p>
 						</div>
-					{/each}
+					{:else}
+						<div class="space-y-3">
+							<div class="flex items-baseline gap-3">
+								<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+									Available teams
+								</h3>
+								<span class="text-xs text-muted-foreground"
+									>{savedResults.teams.length} team{savedResults.teams.length !== 1
+										? 's'
+										: ''} — pick 6 to schedule</span
+								>
+							</div>
+							<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+								{#each savedResults.teams as team}
+									{@const picked = pickedTeams.includes(team.id)}
+									{@const disabled = !picked && pickedTeams.length >= 6}
+									<button
+										onclick={() => toggleTeam(team.id)}
+										disabled={disabled}
+										class="px-4 py-3 rounded-lg border text-left text-sm font-medium transition-colors
+											{picked
+											? 'border-primary bg-primary/10 text-foreground'
+											: 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted/40'}
+											disabled:opacity-40 disabled:cursor-not-allowed"
+									>
+										{team.name}
+										{#if picked}
+											<span class="ml-1 text-xs text-primary">✓</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+
+							{#if pickedTeams.length > 0}
+								<div class="flex flex-wrap items-center gap-2">
+									{#each pickedTeams as id}
+										<span class="text-xs px-2 py-1 rounded bg-primary/10 text-primary font-medium">
+											{savedResults.teams.find((t) => t.id === id)?.name}
+										</span>
+									{/each}
+									<span class="text-xs text-muted-foreground ml-1">{pickedTeams.length}/6</span>
+								</div>
+							{/if}
+
+							{#if pickedTeams.length === 6}
+								<form
+									method="POST"
+									action="?/create-scrim"
+									use:enhance={() => {
+										creating = true;
+										return async ({ update }) => {
+											creating = false;
+											await update();
+										};
+									}}
+								>
+									<input type="hidden" name="starts_at" value={savedResults.slotStart} />
+									{#each pickedTeams as id}
+										<input type="hidden" name="team_id" value={id} />
+									{/each}
+									<button
+										type="submit"
+										disabled={creating}
+										class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+									>
+										{creating ? 'Scheduling…' : 'Create scrim'}
+									</button>
+								</form>
+							{/if}
+						</div>
+					{/if}
+
+					<!-- Fillers -->
+					{#if savedResults.fillers.length > 0}
+						<div class="space-y-3">
+							<div class="flex items-baseline gap-3">
+								<h3
+									class="text-sm font-semibold uppercase tracking-wider {savedResults.teams.length < 2
+										? 'text-amber-500'
+										: 'text-muted-foreground'}"
+								>
+									Available fillers
+								</h3>
+								{#if savedResults.teams.length < 2}
+									<span class="text-xs text-amber-500/80">not enough teams — fillers can fill the gap</span>
+								{/if}
+							</div>
+							<div class="flex flex-wrap gap-2">
+								{#each savedResults.fillers as filler}
+									<div
+										class="px-3 py-2 rounded-lg border border-border bg-card text-sm flex items-center gap-2"
+									>
+										<span class="font-medium">{filler.username}</span>
+										<span class="text-xs text-muted-foreground">{filler.timezone}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if (form as any)?.scrimCreated}
+						<p class="text-sm text-green-600 bg-green-500/10 px-3 py-2 rounded-md">
+							Scrim proposed! Check your dashboard.
+						</p>
+					{/if}
+
+					{#if (form as any)?.error}
+						<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+							{(form as any).error}
+						</p>
+					{/if}
 				</div>
-			{:else if form?.timeFirstResults !== undefined}
-				<p class="text-sm text-muted-foreground">No teams are available for that slot.</p>
 			{/if}
 		</section>
 	{:else}
-		<!-- TEAMS-FIRST: pick two teams, see common slots -->
-		<section class="space-y-4">
-			<p class="text-sm text-muted-foreground">Pick two teams and see when they're both free for a 3-hour scrim.</p>
-			{#if form?.teamsFirstError}
-				<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{form.teamsFirstError}</p>
-			{/if}
-			<form
-				method="POST"
-				action="?/teams-first"
-				use:enhance={() => {
-					searching = true;
-					return async ({ update }) => { searching = false; await update(); };
-				}}
-				class="flex flex-wrap gap-3 items-end"
-			>
-				{#snippet teamSelect(name: string, id: string, onChange: (v: string) => void)}
-					<div class="space-y-1">
-						<label class="text-xs font-medium text-muted-foreground" for={name}>Team</label>
-						<select
-							{id}
-							{name}
-							required
-							onchange={(e) => onChange((e.target as HTMLSelectElement).value)}
-							class="px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+		<!-- ── PICK TEAMS ─────────────────────────────────────────── -->
+		<section class="space-y-5">
+			<p class="text-sm text-muted-foreground">
+				Select up to 6 teams, then click a scrim-ready slot on the calendar to schedule.
+			</p>
+
+			<!-- Team chips -->
+			<div class="space-y-2">
+				<div class="flex items-baseline gap-3">
+					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Teams</h3>
+					<span class="text-xs text-muted-foreground">{ptTeams.length}/6 selected</span>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#each data.teamSlotData as team}
+						{@const picked = ptTeams.includes(team.id)}
+						{@const disabled = !picked && ptTeams.length >= 6}
+						<button
+							onclick={() => togglePtTeam(team.id)}
+							disabled={disabled}
+							class="px-3 py-1.5 rounded-full border text-sm font-medium transition-colors
+								{picked
+								? 'border-primary bg-primary/10 text-foreground'
+								: 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground'}
+								disabled:opacity-40 disabled:cursor-not-allowed"
 						>
-							<option value="">Select a team…</option>
-							{#each data.teams as team}
-								<option value={team.id}>{team.name}</option>
-							{/each}
-						</select>
-					</div>
-				{/snippet}
-
-				{@render teamSelect('team_a', 'team-a', (v) => (teamA = v))}
-				<span class="text-muted-foreground pb-2">vs.</span>
-				{@render teamSelect('team_b', 'team-b', (v) => (teamB = v))}
-
-				<button
-					type="submit"
-					disabled={searching}
-					class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-				>
-					{searching ? 'Searching…' : 'Find slots'}
-				</button>
-			</form>
-
-			{#if teamsFirstResults.length > 0}
-				<div class="space-y-2 pt-2">
-					<p class="text-sm font-medium">{teamsFirstResults.length} common slot(s) found (next 14 days)</p>
-					{#each teamsFirstResults as slot}
-						<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
-							<p class="text-sm">{fmt(slot.starts_at)}</p>
-							<form
-								method="POST"
-								action="?/create-scrim"
-								use:enhance={() => {
-									creating = true;
-									return async ({ update }) => { creating = false; await update(); };
-								}}
-							>
-								<input type="hidden" name="starts_at" value={slot.starts_at} />
-								<input type="hidden" name="team_a" value={teamA} />
-								<input type="hidden" name="team_b" value={teamB} />
-								<button
-									type="submit"
-									disabled={creating}
-									class="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-								>
-									Schedule
-								</button>
-							</form>
-						</div>
+							{team.name}
+							{#if picked}<span class="ml-1 text-xs text-primary">✓</span>{/if}
+						</button>
 					{/each}
 				</div>
-			{:else if form?.teamsFirstResults !== undefined}
-				<p class="text-sm text-muted-foreground">No common slots in the next 14 days.</p>
+			</div>
+
+			<!-- Calendar (only when teams selected) -->
+			{#if ptTeams.length > 0}
+				<TeamScrimCalendar
+					days={data.gridDays}
+					teams={ptGridTeams}
+					selectedSlot={ptSlot}
+					onselect={(s) => (ptSlot = s)}
+				/>
+
+				<!-- Slot summary + create form -->
+				<div class="flex items-center gap-4 pt-1">
+					{#if ptSlot}
+						<span class="text-sm font-medium">{fmtSlotKey(ptSlot)}</span>
+					{:else}
+						<span class="text-sm text-muted-foreground">No slot selected</span>
+					{/if}
+
+					{#if ptTeams.length === 6 && ptSlot}
+						<form
+							method="POST"
+							action="?/create-scrim"
+							use:enhance={() => {
+								creating = true;
+								return async ({ update }) => {
+									creating = false;
+									await update();
+								};
+							}}
+						>
+							<input type="hidden" name="starts_at" value={slotKeyToUtc(ptSlot)} />
+							{#each ptTeams as id}
+								<input type="hidden" name="team_id" value={id} />
+							{/each}
+							<button
+								type="submit"
+								disabled={creating}
+								class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+							>
+								{creating ? 'Scheduling…' : 'Create scrim'}
+							</button>
+						</form>
+					{:else if ptTeams.length < 6}
+						<span class="text-xs text-muted-foreground">Select {6 - ptTeams.length} more team{6 - ptTeams.length !== 1 ? 's' : ''}</span>
+					{/if}
+				</div>
 			{/if}
 
-			{#if form?.scrimCreated}
-				<p class="text-sm text-green-600 bg-green-500/10 px-3 py-2 rounded-md">Scrim proposed! Check your dashboard.</p>
+			{#if (form as any)?.scrimCreated}
+				<p class="text-sm text-green-600 bg-green-500/10 px-3 py-2 rounded-md">
+					Scrim proposed! Check your dashboard.
+				</p>
+			{/if}
+
+			{#if (form as any)?.error}
+				<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+					{(form as any).error}
+				</p>
 			{/if}
 		</section>
 	{/if}

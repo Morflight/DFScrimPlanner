@@ -1,59 +1,192 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { findTeamsForSlot, findCommonSlots } from '$lib/utils/slot-matching';
+import { findTeamsForSlot } from '$lib/utils/slot-matching';
+import { slotsFromWindow } from '$lib/utils/timezone';
+import { supabaseAdmin } from '$lib/server/supabase';
 
-export const load: PageServerLoad = async ({ locals: { supabase } }) => {
-	// Load all teams with their members' availability windows (next 14 days)
-	const horizon = new Date(Date.now() + 14 * 24 * 3_600_000).toISOString();
-	const now = new Date().toISOString();
+export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession } }) => {
+	const { user } = await safeGetSession();
 
-	const { data: teams } = await supabase
-		.from('teams')
-		.select('id, name, team_members(user_id)');
+	// Viewer timezone for grid
+	const { data: profile } = await supabase
+		.from('profiles')
+		.select('timezone')
+		.eq('id', user!.id)
+		.single();
+	const viewerTz = profile?.timezone ?? 'UTC';
 
-	// Load all active availabilities within the next 14 days
-	const { data: allWindows } = await supabase
-		.from('availabilities')
-		.select('user_id, starts_at, ends_at')
-		.gte('ends_at', now)
-		.lte('starts_at', horizon);
+	// Grid days: 7 days from today in viewer's timezone
+	const now = new Date();
+	const dateFmt = new Intl.DateTimeFormat('en-US', {
+		timeZone: viewerTz,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
+	const todayParts = dateFmt.formatToParts(now);
+	const ty = todayParts.find((p) => p.type === 'year')?.value ?? '';
+	const tm = todayParts.find((p) => p.type === 'month')?.value ?? '';
+	const td = todayParts.find((p) => p.type === 'day')?.value ?? '';
+	const start = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
 
-	const windowsByUser = new Map<string, { starts_at: string; ends_at: string }[]>();
-	for (const w of allWindows ?? []) {
-		const list = windowsByUser.get(w.user_id) ?? [];
-		list.push({ starts_at: w.starts_at, ends_at: w.ends_at });
-		windowsByUser.set(w.user_id, list);
-	}
-
-	// Aggregate per team: union of all member windows
-	const teamsWithWindows = (teams ?? []).map((team: any) => {
-		const memberIds: string[] = (team.team_members ?? [])
-			.map((m: any) => m.user_id)
-			.filter(Boolean);
-		const windows = memberIds.flatMap((uid) => windowsByUser.get(uid) ?? []);
-		return { id: team.id, name: team.name, windows };
+	const validDates = new Set<string>();
+	const gridDays = Array.from({ length: 7 }, (_, i) => {
+		const d = new Date(start);
+		d.setUTCDate(start.getUTCDate() + i);
+		const parts = dateFmt.formatToParts(d);
+		const y = parts.find((p) => p.type === 'year')?.value ?? '';
+		const mo = parts.find((p) => p.type === 'month')?.value ?? '';
+		const dy = parts.find((p) => p.type === 'day')?.value ?? '';
+		const dateStr = `${y}-${mo}-${dy}`;
+		validDates.add(dateStr);
+		return {
+			dateStr,
+			label: new Intl.DateTimeFormat('en-US', { timeZone: viewerTz, weekday: 'short' }).format(d),
+			sub: new Intl.DateTimeFormat('en-US', {
+				timeZone: viewerTz,
+				month: 'short',
+				day: 'numeric'
+			}).format(d)
+		};
 	});
 
-	return { teams: teamsWithWindows };
+	const windowStart = start.toISOString();
+	const windowEnd = new Date(start.getTime() + 7 * 24 * 3_600_000).toISOString();
+
+	// ── Viewer's own team ────────────────────────────────────────────────────
+	// Leader check first, then member check
+	const { data: ledTeam } = await supabase
+		.from('teams')
+		.select('id, leader_id')
+		.eq('leader_id', user!.id)
+		.limit(1)
+		.maybeSingle();
+
+	let myTeamId: string | null = ledTeam?.id ?? null;
+	let myTeamLeaderId: string | null = ledTeam?.leader_id ?? null;
+
+	if (!myTeamId) {
+		const { data: membership } = await supabase
+			.from('team_members')
+			.select('team_id, teams(leader_id)')
+			.eq('user_id', user!.id)
+			.eq('status', 'active')
+			.limit(1)
+			.maybeSingle();
+		myTeamId = membership?.team_id ?? null;
+		myTeamLeaderId = (membership?.teams as any)?.leader_id ?? null;
+	}
+
+	// ── All teams with member IDs (for Pick Teams grid) ──────────────────────
+	const { data: teamsWithMembers } = await supabaseAdmin
+		.from('teams')
+		.select('id, name, leader_id, team_members(user_id, status)');
+
+	// Collect all user IDs across all teams (leaders + active members)
+	const allMemberIds = [
+		...new Set([
+			...(teamsWithMembers ?? []).map((t: any) => t.leader_id as string).filter(Boolean),
+			...(teamsWithMembers ?? []).flatMap((t: any) =>
+				(t.team_members ?? [])
+					.filter((m: any) => m.status === 'active' && m.user_id)
+					.map((m: any) => m.user_id as string)
+			)
+		])
+	];
+
+	// Fetch all availabilities in the grid window for all relevant users
+	let memberAvails: { user_id: string; starts_at: string; ends_at: string }[] = [];
+	if (allMemberIds.length > 0) {
+		const { data } = await supabaseAdmin
+			.from('availabilities')
+			.select('user_id, starts_at, ends_at')
+			.in('user_id', allMemberIds)
+			.lt('starts_at', windowEnd)
+			.gt('ends_at', windowStart);
+		memberAvails = data ?? [];
+	}
+
+	// Build per-user slot sets
+	const slotsByUser = new Map<string, Set<string>>();
+	for (const avail of memberAvails) {
+		if (!slotsByUser.has(avail.user_id)) slotsByUser.set(avail.user_id, new Set());
+		for (const k of slotsFromWindow(avail.starts_at, avail.ends_at, viewerTz, validDates)) {
+			slotsByUser.get(avail.user_id)!.add(k);
+		}
+	}
+
+	// Per-team aggregate slot data (for Pick Teams tab) — exclude viewer's own team
+	const teamSlotData = (teamsWithMembers ?? []).filter((t: any) => t.id !== myTeamId).map((team: any) => {
+		const memberIds: string[] = [
+			team.leader_id as string,
+			...(team.team_members ?? [])
+				.filter((m: any) => m.status === 'active' && m.user_id && m.user_id !== team.leader_id)
+				.map((m: any) => m.user_id as string)
+		].filter(Boolean);
+		const teamSlots = new Set<string>();
+		for (const uid of memberIds) {
+			const s = slotsByUser.get(uid);
+			if (s) for (const k of s) teamSlots.add(k);
+		}
+		return { id: team.id as string, name: team.name as string, slots: Array.from(teamSlots) };
+	});
+
+	// Per-member slot data for viewer's own team (for time-first calendar)
+	let myTeamMembers: { id: string; name: string; slots: string[] }[] = [];
+	if (myTeamId) {
+		const myTeamData = (teamsWithMembers ?? []).find((t: any) => t.id === myTeamId);
+		const myMemberIds: string[] = myTeamData
+			? [
+					myTeamLeaderId as string,
+					...(myTeamData.team_members ?? [])
+						.filter(
+							(m: any) => m.status === 'active' && m.user_id && m.user_id !== myTeamLeaderId
+						)
+						.map((m: any) => m.user_id as string)
+				].filter(Boolean)
+			: [];
+
+		if (myMemberIds.length > 0) {
+			const { data: memberProfiles } = await supabaseAdmin
+				.from('profiles')
+				.select('id, username')
+				.in('id', myMemberIds);
+
+			const profileMap = new Map(memberProfiles?.map((p) => [p.id, p.username as string]) ?? []);
+
+			myTeamMembers = myMemberIds.map((uid) => ({
+				id: uid,
+				name: profileMap.get(uid) ?? uid,
+				slots: Array.from(slotsByUser.get(uid) ?? new Set())
+			}));
+		}
+	}
+
+	return { teamSlotData, myTeamMembers, gridDays, viewerTz };
 };
 
 export const actions: Actions = {
-	'time-first': async ({ request, locals: { supabase } }) => {
+	'time-first': async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
 		const data = await request.formData();
 		const slotStartIso = data.get('slot_start') as string;
-		if (!slotStartIso) return fail(400, { timeFirstError: 'Please select a time.' });
+		if (!slotStartIso) return fail(400, { timeFirstError: 'Please select a time slot.' });
 
 		const slotStart = new Date(slotStartIso);
 		if (isNaN(slotStart.getTime())) return fail(400, { timeFirstError: 'Invalid time.' });
 
-		const horizon = new Date(Date.now() + 14 * 24 * 3_600_000).toISOString();
-		const now = new Date().toISOString();
+		const horizon = new Date(slotStart.getTime() + 14 * 24 * 3_600_000).toISOString();
+		const nowIso = new Date().toISOString();
 
-		const { data: teams } = await supabase.from('teams').select('id, name, team_members(user_id)');
-		const { data: allWindows } = await supabase
+		// Use admin client so RLS doesn't restrict cross-team availability reads
+		const { data: teams } = await supabaseAdmin
+			.from('teams')
+			.select('id, name, team_members(user_id, status)');
+
+		const { data: allWindows } = await supabaseAdmin
 			.from('availabilities')
 			.select('user_id, starts_at, ends_at')
-			.gte('ends_at', now)
+			.gte('ends_at', nowIso)
 			.lte('starts_at', horizon);
 
 		const windowsByUser = new Map<string, { starts_at: string; ends_at: string }[]>();
@@ -65,51 +198,67 @@ export const actions: Actions = {
 
 		const teamsWithWindows = (teams ?? []).map((team: any) => {
 			const memberIds: string[] = (team.team_members ?? [])
+				.filter((m: any) => m.status === 'active')
 				.map((m: any) => m.user_id)
 				.filter(Boolean);
-			return { id: team.id, name: team.name, windows: memberIds.flatMap((uid) => windowsByUser.get(uid) ?? []) };
+			return {
+				id: team.id,
+				name: team.name,
+				windows: memberIds.flatMap((uid) => windowsByUser.get(uid) ?? [])
+			};
 		});
 
-		const available = findTeamsForSlot(teamsWithWindows, slotStart);
-		return { timeFirstResults: available, slotStart: slotStartIso };
-	},
+		// Find viewer's own team to exclude it from results
+		let viewerTeamId: string | null = null;
+		if (user) {
+			const { data: ledTeam } = await supabase
+				.from('teams')
+				.select('id')
+				.eq('leader_id', user.id)
+				.limit(1)
+				.maybeSingle();
+			viewerTeamId = ledTeam?.id ?? null;
+			if (!viewerTeamId) {
+				const { data: mem } = await supabase
+					.from('team_members')
+					.select('team_id')
+					.eq('user_id', user.id)
+					.eq('status', 'active')
+					.limit(1)
+					.maybeSingle();
+				viewerTeamId = mem?.team_id ?? null;
+			}
+		}
 
-	'teams-first': async ({ request, locals: { supabase } }) => {
-		const data = await request.formData();
-		const teamAId = data.get('team_a') as string;
-		const teamBId = data.get('team_b') as string;
+		const availableTeams = findTeamsForSlot(teamsWithWindows, slotStart).filter(
+			(t) => t.id !== viewerTeamId
+		);
 
-		if (!teamAId || !teamBId) return fail(400, { teamsFirstError: 'Select two teams.' });
-		if (teamAId === teamBId) return fail(400, { teamsFirstError: 'Select two different teams.' });
+		// Find fillers available for this 3h window
+		const slotEnd = new Date(slotStart.getTime() + 3 * 3_600_000);
 
-		const now = new Date().toISOString();
-		const horizon = new Date(Date.now() + 14 * 24 * 3_600_000).toISOString();
+		const { data: fillerProfiles } = await supabaseAdmin
+			.from('profiles')
+			.select('id, username, timezone')
+			.eq('role', 'filler');
 
-		const getWindows = async (teamId: string) => {
-			const { data: members } = await supabase
-				.from('team_members')
-				.select('user_id')
-				.eq('team_id', teamId)
-				.eq('status', 'active')
-				.not('user_id', 'is', null);
-
-			const userIds = (members ?? []).map((m: any) => m.user_id);
-			if (!userIds.length) return [];
-
-			const { data: windows } = await supabase
+		let fillerResults: { id: string; username: string; timezone: string }[] = [];
+		if (fillerProfiles && fillerProfiles.length > 0) {
+			const fillerIds = fillerProfiles.map((f) => f.id);
+			const { data: fillerWindows } = await supabaseAdmin
 				.from('availabilities')
-				.select('starts_at, ends_at')
-				.in('user_id', userIds)
-				.gte('ends_at', now)
-				.lte('starts_at', horizon);
+				.select('user_id, starts_at, ends_at')
+				.in('user_id', fillerIds)
+				.lte('starts_at', slotStart.toISOString())
+				.gte('ends_at', slotEnd.toISOString());
 
-			return windows ?? [];
-		};
+			const availableFillerIds = new Set(fillerWindows?.map((w) => w.user_id) ?? []);
+			fillerResults = fillerProfiles.filter(
+				(f) => availableFillerIds.has(f.id) && f.id !== user?.id
+			);
+		}
 
-		const [teamAWindows, teamBWindows] = await Promise.all([getWindows(teamAId), getWindows(teamBId)]);
-		const slots = findCommonSlots(teamAWindows, teamBWindows);
-
-		return { teamsFirstResults: slots.map((s) => ({ starts_at: s.starts_at.toISOString() })) };
+		return { timeFirstResults: availableTeams, fillerResults, slotStart: slotStartIso };
 	},
 
 	'create-scrim': async ({ request, locals: { supabase, safeGetSession } }) => {
@@ -118,10 +267,10 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const startsAt = data.get('starts_at') as string;
-		const teamAId = data.get('team_a') as string;
-		const teamBId = data.get('team_b') as string;
+		const teamIds = data.getAll('team_id') as string[];
 
-		if (!startsAt || !teamAId || !teamBId) return fail(400, { error: 'Missing fields.' });
+		if (!startsAt) return fail(400, { error: 'Missing start time.' });
+		if (teamIds.length !== 6) return fail(400, { error: 'Exactly 6 teams are required.' });
 
 		const { data: scrim, error: scrimError } = await supabase
 			.from('scrims')
@@ -129,12 +278,12 @@ export const actions: Actions = {
 			.select('id')
 			.single();
 
-		if (scrimError || !scrim) return fail(500, { error: scrimError?.message ?? 'Failed to create scrim.' });
+		if (scrimError || !scrim)
+			return fail(500, { error: scrimError?.message ?? 'Failed to create scrim.' });
 
-		const { error: teamsError } = await supabase.from('scrim_teams').insert([
-			{ scrim_id: scrim.id, team_id: teamAId },
-			{ scrim_id: scrim.id, team_id: teamBId }
-		]);
+		const { error: teamsError } = await supabase
+			.from('scrim_teams')
+			.insert(teamIds.map((id) => ({ scrim_id: scrim.id, team_id: id })));
 
 		if (teamsError) return fail(500, { error: teamsError.message });
 

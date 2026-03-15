@@ -35,6 +35,8 @@ src/routes/
 |-----------|----------|---------|
 | AvailabilityGrid | `lib/components/AvailabilityGrid.svelte` | 7-day × 48-slot clickable grid; click+drag to select; emits `onchange(Set<string>)` with slot keys (`"YYYY-MM-DDTHH:MM"` in user tz); accepts `readonly={true}` to disable interaction |
 | TeamAvailabilityGrid | `lib/components/TeamAvailabilityGrid.svelte` | Read-only multi-member grid: one colored bar row per member per day + a Team row showing overlap count; green highlight when ≥3 members overlap in a ≥3h contiguous run; legend below. Props: `days: Day[]`, `members: { userId, username, slotSet: Set<string> }[]` |
+| ScrimCalendar | `lib/components/ScrimCalendar.svelte` | Interactive scrim slot picker: 7-day × 48-slot grid; click a slot to select a 3h window (highlighted in primary color); slots 21:30–23:30 non-selectable (would cross midnight); click selected slot to deselect. Props: `days: Day[]`, `selectedSlot: string \| null`, `onselect: (slot: string \| null) => void` |
+| TeamScrimCalendar | `lib/components/TeamScrimCalendar.svelte` | Combined team-availability + scrim-slot picker: per-team colored bars (one per selected team) + green highlight when all teams free; clickable 3h selection like ScrimCalendar. Props: `days: Day[]`, `teams: { id, name, slotSet: Set<string> }[]`, `selectedSlot: string \| null`, `onselect: (slot: string \| null) => void` |
 | TimezoneSelect | `lib/components/` | IANA timezone picker (planned) |
 | UserAvatar | `lib/components/` | Profile avatar + name (planned) |
 

@@ -12,9 +12,9 @@
 --   Group B – Teams 4–6 (Ghosts/Thunder/Shadow):  anchor Tue, Thu, Sat
 --   Group C – Teams 7–9 (Arctic/Storm/Hunters):   anchor Wed, Fri, Sun
 --
--- Scrim matchable slots:
---   anchor+Wed 17:00 UTC → Groups A + C both free (6 teams)
---   anchor+Fri 17:00 UTC → Groups A + C both free (6 teams)
+-- Scrim matchable slots (6 teams required per scrim):
+--   anchor+Wed 17:00 UTC → Groups A (Phoenix/Wolves/Falcons) + C (Arctic/Storm/Hunters) = 6 teams
+--   anchor+Fri 17:00 UTC → Groups A + C = 6 teams
 -- ============================================================
 
 -- ── Admin account ────────────────────────────────────────────
