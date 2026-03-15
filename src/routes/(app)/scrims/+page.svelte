@@ -87,7 +87,7 @@
 	function toggleTeam(id: string) {
 		if (pickedTeams.includes(id)) {
 			pickedTeams = pickedTeams.filter((t) => t !== id);
-		} else if (pickedTeams.length < 6) {
+		} else if (pickedTeams.length < 5) {
 			pickedTeams = [...pickedTeams, id];
 		}
 	}
@@ -108,7 +108,7 @@
 		if (ptTeams.includes(id)) {
 			ptTeams = ptTeams.filter((t) => t !== id);
 			ptSlot = null;
-		} else if (ptTeams.length < 6) {
+		} else if (ptTeams.length < 5) {
 			ptTeams = [...ptTeams, id];
 		}
 	}
@@ -222,13 +222,13 @@
 								<span class="text-xs text-muted-foreground"
 									>{savedResults.teams.length} team{savedResults.teams.length !== 1
 										? 's'
-										: ''} — pick 6 to schedule</span
+										: ''} — pick 5 to schedule</span
 								>
 							</div>
 							<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 								{#each savedResults.teams as team}
 									{@const picked = pickedTeams.includes(team.id)}
-									{@const disabled = !picked && pickedTeams.length >= 6}
+									{@const disabled = !picked && pickedTeams.length >= 5}
 									<button
 										onclick={() => toggleTeam(team.id)}
 										disabled={disabled}
@@ -253,11 +253,11 @@
 											{savedResults.teams.find((t) => t.id === id)?.name}
 										</span>
 									{/each}
-									<span class="text-xs text-muted-foreground ml-1">{pickedTeams.length}/6</span>
+									<span class="text-xs text-muted-foreground ml-1">{pickedTeams.length}/5</span>
 								</div>
 							{/if}
 
-							{#if pickedTeams.length === 6}
+							{#if pickedTeams.length === 5}
 								<form
 									method="POST"
 									action="?/create-scrim"
@@ -331,19 +331,19 @@
 		<!-- ── PICK TEAMS ─────────────────────────────────────────── -->
 		<section class="space-y-5">
 			<p class="text-sm text-muted-foreground">
-				Select up to 6 teams, then click a scrim-ready slot on the calendar to schedule.
+				Select up to 5 opponent teams, then click a scrim-ready slot on the calendar to schedule.
 			</p>
 
 			<!-- Team chips -->
 			<div class="space-y-2">
 				<div class="flex items-baseline gap-3">
 					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Teams</h3>
-					<span class="text-xs text-muted-foreground">{ptTeams.length}/6 selected</span>
+					<span class="text-xs text-muted-foreground">{ptTeams.length}/5 selected</span>
 				</div>
 				<div class="flex flex-wrap gap-2">
 					{#each data.teamSlotData as team}
 						{@const picked = ptTeams.includes(team.id)}
-						{@const disabled = !picked && ptTeams.length >= 6}
+						{@const disabled = !picked && ptTeams.length >= 5}
 						<button
 							onclick={() => togglePtTeam(team.id)}
 							disabled={disabled}
@@ -377,7 +377,7 @@
 						<span class="text-sm text-muted-foreground">No slot selected</span>
 					{/if}
 
-					{#if ptTeams.length === 6 && ptSlot}
+					{#if ptTeams.length === 5 && ptSlot}
 						<form
 							method="POST"
 							action="?/create-scrim"
@@ -401,8 +401,8 @@
 								{creating ? 'Scheduling…' : 'Create scrim'}
 							</button>
 						</form>
-					{:else if ptTeams.length < 6}
-						<span class="text-xs text-muted-foreground">Select {6 - ptTeams.length} more team{6 - ptTeams.length !== 1 ? 's' : ''}</span>
+					{:else if ptTeams.length < 5}
+						<span class="text-xs text-muted-foreground">Select {5 - ptTeams.length} more team{5 - ptTeams.length !== 1 ? 's' : ''}</span>
 					{/if}
 				</div>
 			{/if}
