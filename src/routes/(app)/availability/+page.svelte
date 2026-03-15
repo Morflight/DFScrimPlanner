@@ -71,11 +71,14 @@
 
 	/** Convert a "YYYY-MM-DDTHH:MM" local-tz slot key to a UTC Date. */
 	function slotKeyToUtc(key: string): Date {
-		// Parse as if UTC, then correct for the tz offset at that moment
-		const tzDate = new Date(new Date(key + ':00Z').toLocaleString('en-US', { timeZone: tz }));
-		const tzUtc = new Date(key + ':00Z');
-		const offsetMs = tzDate.getTime() - tzUtc.getTime();
-		return new Date(new Date(key + ':00Z').getTime() - offsetMs);
+		// Treat key as UTC temporarily to get an approximate Date
+		const approx = new Date(key + ':00Z');
+		// Format that UTC moment in the user's tz using the 'sv' locale, which produces
+		// "YYYY-MM-DD HH:MM:SS" — safe to re-parse as UTC by appending Z.
+		// This avoids depending on the browser's local timezone.
+		const inTz = approx.toLocaleString('sv', { timeZone: tz }); // e.g. "2026-03-15 15:30:00"
+		const offsetMs = new Date(inTz.replace(' ', 'T') + 'Z').getTime() - approx.getTime();
+		return new Date(approx.getTime() - offsetMs);
 	}
 
 	/** Merge sorted consecutive 30-min slot keys into UTC availability ranges. */
