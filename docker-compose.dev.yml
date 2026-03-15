@@ -1,0 +1,21 @@
+services:
+  app:
+    image: node:lts
+    container_name: dfscrimplanner_app
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - NODE_ENV=development
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dfscrimplanner.rule=Host(`dfscrimplanner.local.com`)"
+      - "traefik.http.routers.dfscrimplanner.tls=true"
+      - "traefik.http.services.dfscrimplanner.loadbalancer.server.port=5173"
+    networks:
+      - reverse-proxy
+
+networks:
+  reverse-proxy:
+    external: true
