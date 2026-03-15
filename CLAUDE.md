@@ -1,3 +1,11 @@
+## Project Configuration
+
+- **Language**: TypeScript
+- **Package Manager**: npm
+- **Add-ons**: none
+
+---
+
 # DFScrimPlanner
 
 Scrim scheduling app for Delta Force teams — matches team availabilities to 3-hour scrim slots, with timezone support and filler player management.
@@ -11,7 +19,7 @@ Scrim scheduling app for Delta Force teams — matches team availabilities to 3-
 ## Common Commands
 
 ```bash
-make dev          # Start Supabase local stack + SvelteKit dev server
+make start        # Start Supabase local stack + SvelteKit dev server
 make stop         # Stop dev stack
 make test         # Run Vitest
 make build        # Production build (used by Netlify)

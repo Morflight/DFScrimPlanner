@@ -3,7 +3,7 @@
 ## Dev Stack
 
 ```bash
-make dev                       # Start Supabase local stack + SvelteKit dev server
+make start                     # Start Supabase local stack + SvelteKit dev server
 make stop                      # Stop dev stack (app + Supabase)
 make build                     # Production build
 make deploy                    # Push to master → Netlify auto-deploys
@@ -12,9 +12,9 @@ make deploy                    # Push to master → Netlify auto-deploys
 ## Testing
 
 ```bash
-make test                      # Run all Vitest tests
-npx vitest run tests/<file>    # Run a single test file
-npx vitest watch               # Watch mode (dev)
+make test                                                                   # Run all Vitest tests
+docker compose -f docker-compose.dev.yml exec app npx vitest run tests/<file>  # Single test file
+docker compose -f docker-compose.dev.yml exec app npx vitest watch             # Watch mode (dev)
 ```
 
 ## Database / Supabase
