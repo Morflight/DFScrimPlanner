@@ -57,5 +57,39 @@ export const actions: Actions = {
 
 		if (error) return fail(500, { error: error.message });
 		return {};
+	},
+
+	save: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) return fail(401, { error: 'Not authenticated.' });
+
+		const formData = await request.formData();
+		const rangesJson = formData.get('ranges_json') as string;
+
+		let ranges: { starts_at: string; ends_at: string }[];
+		try {
+			ranges = JSON.parse(rangesJson);
+			if (!Array.isArray(ranges)) throw new Error('Not an array');
+		} catch {
+			return fail(400, { error: 'Invalid availability data.' });
+		}
+
+		// Replace all future availabilities with the new set
+		const { error: delError } = await supabase
+			.from('availabilities')
+			.delete()
+			.eq('user_id', user.id)
+			.gte('ends_at', new Date().toISOString());
+
+		if (delError) return fail(500, { error: delError.message });
+
+		if (ranges.length > 0) {
+			const { error: insertError } = await supabase
+				.from('availabilities')
+				.insert(ranges.map((r) => ({ user_id: user.id, starts_at: r.starts_at, ends_at: r.ends_at })));
+			if (insertError) return fail(500, { error: insertError.message });
+		}
+
+		return { success: true };
 	}
 };

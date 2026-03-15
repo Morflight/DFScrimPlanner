@@ -71,3 +71,45 @@ export function overlapHours(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date)
 	const end = new Date(Math.min(aEnd.getTime(), bEnd.getTime()));
 	return Math.max(0, (end.getTime() - start.getTime()) / 3_600_000);
 }
+
+/**
+ * Given a UTC availability window, return all 30-min slot keys (in the given IANA timezone)
+ * that fall within the window, filtered to the provided set of valid date strings (YYYY-MM-DD).
+ * Slot key format: "YYYY-MM-DDTHH:MM"
+ */
+export function slotsFromWindow(
+	startsAt: string,
+	endsAt: string,
+	tz: string,
+	validDates: Set<string>
+): string[] {
+	const step = 30 * 60 * 1000;
+	const startMs = new Date(startsAt).getTime();
+	const endMs = new Date(endsAt).getTime();
+	// Align start down to nearest 30-min UTC boundary
+	const alignedStart = startMs - (startMs % step);
+	const result: string[] = [];
+	const fmt = new Intl.DateTimeFormat('en-US', {
+		timeZone: tz,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false
+	});
+	for (let ms = alignedStart; ms < endMs; ms += step) {
+		const parts = fmt.formatToParts(new Date(ms));
+		const y = parts.find((p) => p.type === 'year')?.value ?? '';
+		const mo = parts.find((p) => p.type === 'month')?.value ?? '';
+		const d = parts.find((p) => p.type === 'day')?.value ?? '';
+		let h = parts.find((p) => p.type === 'hour')?.value ?? '00';
+		const mi = parts.find((p) => p.type === 'minute')?.value ?? '00';
+		if (h === '24') h = '00';
+		const dateStr = `${y}-${mo}-${d}`;
+		if (validDates.has(dateStr)) {
+			result.push(`${dateStr}T${h}:${mi}`);
+		}
+	}
+	return result;
+}

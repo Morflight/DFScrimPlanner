@@ -43,7 +43,7 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
 | `user_id` | `uuid` | no | — | FK → profiles.id |
 | `starts_at` | `timestamptz` | no | — | UTC |
-| `ends_at` | `timestamptz` | no | — | UTC |
+| `ends_at` | `timestamptz` | no | — | UTC — no minimum duration enforced at DB level; ≥3h check is in slot-matching logic |
 | `created_at` | `timestamptz` | no | `now()` | — |
 
 ### `scrims`
@@ -98,8 +98,28 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 
 Both volumes are declared as `external` in `docker-compose.dev.yml` — `docker compose down -v` will never remove them. To intentionally wipe data, run `make db-reset` (re-applies migrations) or manually `docker volume rm supabase_db_app supabase_storage_app`.
 
+## RLS Anti-Pattern: Avoid Cross-Table Lookups in Policies
+
+Any policy that queries another RLS-protected table can cause infinite recursion if that table's policies query back. **Always use a `SECURITY DEFINER` function** for cross-table checks — the function bypasses RLS on the inner query, breaking the cycle.
+
+Available helper functions (all `SECURITY DEFINER`):
+
+| Function | Checks |
+|----------|--------|
+| `public.is_admin()` | caller is admin |
+| `public.is_team_leader(team_id)` | caller is leader of team |
+| `public.is_team_member_of(team_id)` | caller is member of team |
+| `public.shares_team_with(user_id)` | caller shares any team with user |
+| `public.is_scrim_organizer(scrim_id)` | caller is organizer of scrim |
+| `public.participates_in_scrim(scrim_id)` | caller is in any team of scrim |
+
 ## Migrations
 
 | File | Description |
 |------|-------------|
-|      |             |
+| `20260315000001_initial_schema.sql` | Tables: profiles, teams, team_members, availabilities, scrims, scrim_teams |
+| `20260315000002_rls_policies.sql` | Initial RLS policies |
+| `20260315160522_add_admin_role.sql` | Add admin role constraint + admin policies (recursive — superseded) |
+| `20260315160938_fix_admin_rls_recursion.sql` | `is_admin()` SECURITY DEFINER; fix profiles recursion |
+| `20260315163755_fix_team_rls_recursion.sql` | SECURITY DEFINER helpers for all cross-table RLS; fix teams ↔ team_members and scrims ↔ scrim_teams cycles |
+| `20260315164825_drop_valid_window_constraint.sql` | Drop `valid_window` check constraint — 3h minimum enforced in slot-matching logic, not schema |

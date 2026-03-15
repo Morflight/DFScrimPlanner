@@ -33,9 +33,9 @@ src/routes/
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| AvailabilityGrid | `lib/components/` | Visual grid (shadcn-based) for availability display |
-| TimezoneSelect | `lib/components/` | IANA timezone picker |
-| UserAvatar | `lib/components/` | Profile avatar + name |
+| AvailabilityGrid | `lib/components/AvailabilityGrid.svelte` | 7-day × 48-slot clickable grid; click+drag to select; emits `onchange(Set<string>)` with slot keys (`"YYYY-MM-DDTHH:MM"` in user tz) |
+| TimezoneSelect | `lib/components/` | IANA timezone picker (planned) |
+| UserAvatar | `lib/components/` | Profile avatar + name (planned) |
 
 ## Backend
 

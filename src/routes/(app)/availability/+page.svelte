@@ -1,166 +1,156 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import AvailabilityGrid from '$lib/components/AvailabilityGrid.svelte';
+	import { slotsFromWindow } from '$lib/utils/timezone';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const tz = $derived(data.profile?.timezone ?? 'UTC');
-	let adding = $state(false);
-	let removing = $state<string | null>(null);
+	let saving = $state(false);
 
-	// Default: today at current hour (rounded), 4h window
-	const now = new Date();
-	const roundedHour = new Date(now);
-	roundedHour.setMinutes(0, 0, 0);
-	roundedHour.setHours(roundedHour.getHours() + 1);
+	// ── Day helpers ──────────────────────────────────────────────────────────
 
-	function toLocalInputValue(date: Date): string {
-		// Format as YYYY-MM-DDTHH:mm in local time for datetime-local input
-		const pad = (n: number) => String(n).padStart(2, '0');
-		const tzDate = new Date(date.toLocaleString('en-US', { timeZone: tz }));
-		return `${tzDate.getFullYear()}-${pad(tzDate.getMonth() + 1)}-${pad(tzDate.getDate())}T${pad(tzDate.getHours())}:${pad(tzDate.getMinutes())}`;
-	}
-
-	let defaultStart = $state(toLocalInputValue(roundedHour));
-	let defaultEnd = $state(() => {
-		const end = new Date(roundedHour);
-		end.setHours(end.getHours() + 4);
-		return toLocalInputValue(end);
-	});
-
-	function formatWindow(startsAt: string, endsAt: string): string {
-		const fmt = (iso: string) =>
-			new Intl.DateTimeFormat('en-US', {
-				timeZone: tz,
-				weekday: 'short',
-				month: 'short',
-				day: 'numeric',
-				hour: 'numeric',
-				minute: '2-digit'
-			}).format(new Date(iso));
-		const hours = (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 3_600_000;
-		return `${fmt(startsAt)} → ${fmt(endsAt)} (${hours}h)`;
-	}
-
-	// Convert local datetime-local input (interpreted in user tz) to UTC ISO
-	function localInputToUtc(localDt: string): string {
-		// datetime-local gives "YYYY-MM-DDTHH:mm" — we treat this as the user's local time
-		// We need to send it to the server as a UTC ISO string
-		// Use Intl to find the offset
-		const dt = new Date(localDt); // parsed as UTC (wrong), we'll correct below
-		const formatter = new Intl.DateTimeFormat('en-US', {
-			timeZone: tz,
+	function todayInTz(timezone: string): string {
+		const parts = new Intl.DateTimeFormat('en-US', {
+			timeZone: timezone,
 			year: 'numeric',
 			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit',
-			second: '2-digit',
-			hour12: false
+			day: '2-digit'
+		}).formatToParts(new Date());
+		const y = parts.find((p) => p.type === 'year')?.value ?? '';
+		const mo = parts.find((p) => p.type === 'month')?.value ?? '';
+		const d = parts.find((p) => p.type === 'day')?.value ?? '';
+		return `${y}-${mo}-${d}`;
+	}
+
+	function addDays(dateStr: string, n: number): string {
+		const [y, m, d] = dateStr.split('-').map(Number);
+		return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+	}
+
+	function formatDayHeader(dateStr: string): { label: string; sub: string } {
+		// Use noon UTC to avoid date-boundary issues
+		const date = new Date(dateStr + 'T12:00:00Z');
+		return {
+			label: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date),
+			sub: new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' }).format(date)
+		};
+	}
+
+	// ── Derived grid data ─────────────────────────────────────────────────────
+
+	const days = $derived.by(() => {
+		const today = todayInTz(tz);
+		return Array.from({ length: 7 }, (_, i) => {
+			const dateStr = addDays(today, i);
+			const { label, sub } = formatDayHeader(dateStr);
+			return { dateStr, label, sub };
 		});
-		// Get current UTC offset for this tz at the given moment
-		// This is an approximation; close enough for hourly slots
-		const tzDate = new Date(new Date(localDt + ':00Z').toLocaleString('en-US', { timeZone: tz }));
-		const tzUtc = new Date(localDt + ':00Z');
+	});
+
+	const validDates = $derived(new Set(days.map((d) => d.dateStr)));
+
+	const initialSlots = $derived.by(() => {
+		const slots = new Set<string>();
+		for (const avail of data.availabilities) {
+			for (const key of slotsFromWindow(avail.starts_at, avail.ends_at, tz, validDates)) {
+				slots.add(key);
+			}
+		}
+		return slots;
+	});
+
+	let selectedSlots = $state(new Set<string>());
+
+	$effect(() => {
+		selectedSlots = new Set(initialSlots);
+	});
+
+	// ── Slot → UTC conversion ─────────────────────────────────────────────────
+
+	/** Convert a "YYYY-MM-DDTHH:MM" local-tz slot key to a UTC Date. */
+	function slotKeyToUtc(key: string): Date {
+		// Parse as if UTC, then correct for the tz offset at that moment
+		const tzDate = new Date(new Date(key + ':00Z').toLocaleString('en-US', { timeZone: tz }));
+		const tzUtc = new Date(key + ':00Z');
 		const offsetMs = tzDate.getTime() - tzUtc.getTime();
-		return new Date(new Date(localDt + ':00Z').getTime() - offsetMs).toISOString();
+		return new Date(new Date(key + ':00Z').getTime() - offsetMs);
+	}
+
+	/** Merge sorted consecutive 30-min slot keys into UTC availability ranges. */
+	function mergeSlotsToRanges(): { starts_at: string; ends_at: string }[] {
+		if (selectedSlots.size === 0) return [];
+
+		const sorted = Array.from(selectedSlots).sort();
+		const ranges: { starts_at: string; ends_at: string }[] = [];
+		let rangeStart = sorted[0];
+		let prev = sorted[0];
+
+		for (let i = 1; i < sorted.length; i++) {
+			const cur = sorted[i];
+			const diffMin =
+				(slotKeyToUtc(cur).getTime() - slotKeyToUtc(prev).getTime()) / 60_000;
+			if (diffMin !== 30) {
+				// Close the current range
+				const end = slotKeyToUtc(prev);
+				end.setMinutes(end.getMinutes() + 30);
+				ranges.push({ starts_at: slotKeyToUtc(rangeStart).toISOString(), ends_at: end.toISOString() });
+				rangeStart = cur;
+			}
+			prev = cur;
+		}
+
+		// Close the last range
+		const end = slotKeyToUtc(prev);
+		end.setMinutes(end.getMinutes() + 30);
+		ranges.push({ starts_at: slotKeyToUtc(rangeStart).toISOString(), ends_at: end.toISOString() });
+
+		return ranges;
 	}
 </script>
 
-<div class="p-8 max-w-3xl space-y-8">
-	<div>
+<div class="p-6 max-w-5xl space-y-4">
+	<!-- Header -->
+	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold tracking-tight">My Availability</h1>
-		<p class="text-sm text-muted-foreground mt-1">
-			Times shown in your timezone: <strong>{tz}</strong>
-		</p>
+		<span class="text-sm bg-muted text-muted-foreground px-3 py-1 rounded-full font-medium">
+			{tz}
+		</span>
 	</div>
 
 	{#if (form as any)?.error}
-		<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{(form as any).error}</p>
+		<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+			{(form as any).error}
+		</p>
+	{/if}
+	{#if (form as any)?.success}
+		<p class="text-sm text-green-700 bg-green-50 px-3 py-2 rounded-md">Availability saved.</p>
 	{/if}
 
-	<!-- Add availability window -->
-	<section class="space-y-3">
-		<h2 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Add Window</h2>
-		<form
-			method="POST"
-			action="?/add"
-			use:enhance={({ formData }) => {
-				// Convert local datetime-local values to UTC before submission
-				const start = formData.get('starts_at_local') as string;
-				const end = formData.get('ends_at_local') as string;
-				formData.set('starts_at', localInputToUtc(start));
-				formData.set('ends_at', localInputToUtc(end));
-				adding = true;
-				return async ({ update }) => { adding = false; await update(); };
-			}}
-			class="space-y-3"
-		>
-			<div class="grid grid-cols-2 gap-3">
-				<div class="space-y-1">
-					<label class="text-xs font-medium text-muted-foreground" for="starts">From</label>
-					<input
-						id="starts"
-						name="starts_at_local"
-						type="datetime-local"
-						required
-						value={defaultStart}
-						class="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-					/>
-				</div>
-				<div class="space-y-1">
-					<label class="text-xs font-medium text-muted-foreground" for="ends">To</label>
-					<input
-						id="ends"
-						name="ends_at_local"
-						type="datetime-local"
-						required
-						value={defaultEnd}
-						class="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-					/>
-				</div>
-			</div>
-			<p class="text-xs text-muted-foreground">Minimum 3 hours (one scrim duration).</p>
-			<button
-				type="submit"
-				disabled={adding}
-				class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-			>
-				{adding ? 'Saving…' : 'Add availability'}
-			</button>
-		</form>
-	</section>
+	<!-- Calendar grid -->
+	<AvailabilityGrid {days} {selectedSlots} onchange={(slots) => (selectedSlots = slots)} />
 
-	<!-- Existing windows -->
-	<section class="space-y-3">
-		<h2 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Your Windows</h2>
-		{#if data.availabilities.length === 0}
-			<p class="text-sm text-muted-foreground">No availability set yet.</p>
-		{:else}
-			<div class="space-y-2">
-				{#each data.availabilities as slot}
-					<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
-						<p class="text-sm">{formatWindow(slot.starts_at, slot.ends_at)}</p>
-						<form
-							method="POST"
-							action="?/remove"
-							use:enhance={() => {
-								removing = slot.id;
-								return async ({ update }) => { removing = null; await update(); };
-							}}
-						>
-							<input type="hidden" name="id" value={slot.id} />
-							<button
-								type="submit"
-								disabled={removing === slot.id}
-								class="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50 transition-colors"
-							>
-								Remove
-							</button>
-						</form>
-					</div>
-				{/each}
-			</div>
-		{/if}
-	</section>
+	<!-- Save -->
+	<form
+		method="POST"
+		action="?/save"
+		use:enhance={({ formData }) => {
+			formData.set('ranges_json', JSON.stringify(mergeSlotsToRanges()));
+			saving = true;
+			return async ({ update }) => {
+				saving = false;
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="ranges_json" value="" />
+		<button
+			type="submit"
+			disabled={saving}
+			class="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+		>
+			{saving ? 'Saving…' : 'Save availability'}
+		</button>
+	</form>
 </div>
