@@ -1,3 +1,7 @@
+export HOST_UID := $(shell id -u)
+export HOST_GID := $(shell id -g)
+export DOCKER_GID := $(shell getent group docker 2>/dev/null | cut -d: -f3 || echo 999)
+
 SUPABASE = docker compose -f docker-compose.dev.yml run --rm supabase-cli supabase
 
 init:

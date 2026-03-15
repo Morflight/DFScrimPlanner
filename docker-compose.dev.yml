@@ -2,6 +2,7 @@ services:
   app:
     image: node:lts
     container_name: dfscrimplanner_app
+    user: "${HOST_UID}:${HOST_GID}"
     working_dir: /app
     volumes:
       - .:/app
@@ -23,6 +24,9 @@ services:
       context: .
       dockerfile: docker/supabase-cli/Dockerfile
     container_name: dfscrimplanner_supabase_cli
+    user: "${HOST_UID}:${DOCKER_GID}"
+    group_add:
+      - "${HOST_GID}"
     working_dir: /app
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # CLI talks to host Docker daemon
