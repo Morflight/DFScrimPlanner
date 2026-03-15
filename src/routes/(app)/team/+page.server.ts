@@ -10,6 +10,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.from('teams')
 		.select('id, name, leader_id, created_at')
 		.eq('leader_id', user!.id)
+		.limit(1)
 		.maybeSingle();
 
 	// Check if user is a member of a team
@@ -18,6 +19,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.select('team_id, status, teams(id, name, leader_id)')
 		.eq('user_id', user!.id)
 		.eq('status', 'active')
+		.limit(1)
 		.maybeSingle();
 
 	const team = ledTeam ?? (membership?.teams as any) ?? null;
@@ -48,12 +50,12 @@ export const actions: Actions = {
 		if (!name || name.length < 2) return fail(400, { error: 'Team name must be at least 2 characters.' });
 
 		// Check user doesn't already lead a team
-		const { data: existing } = await supabase
+		const { data: existingTeams } = await supabase
 			.from('teams')
 			.select('id')
 			.eq('leader_id', user.id)
-			.maybeSingle();
-		if (existing) return fail(400, { error: 'You already lead a team.' });
+			.limit(1);
+		if (existingTeams && existingTeams.length > 0) return fail(400, { error: 'You already lead a team.' });
 
 		const { error } = await supabase.from('teams').insert({ name, leader_id: user.id });
 		if (error) return fail(500, { error: error.message });

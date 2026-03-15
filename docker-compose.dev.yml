@@ -36,3 +36,9 @@ services:
 networks:
   reverse-proxy:
     external: true
+
+volumes:
+  supabase_db_app:
+    external: true   # Created and managed by the Supabase CLI (supabase start)
+  supabase_storage_app:
+    external: true   # Created and managed by the Supabase CLI (supabase start)

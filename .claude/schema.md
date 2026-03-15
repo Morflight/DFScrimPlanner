@@ -10,7 +10,7 @@ Extends Supabase auth.users. Created automatically on user sign-up via trigger.
 | `id` | `uuid` | no | — | FK → auth.users.id |
 | `username` | `text` | no | — | Display name |
 | `timezone` | `text` | no | `'UTC'` | IANA timezone string |
-| `role` | `text` | no | `'player'` | `'leader'`, `'player'`, `'filler'` |
+| `role` | `text` | no | `'player'` | `'admin'`, `'leader'`, `'player'`, `'filler'` — admin > leader > player/filler |
 | `created_at` | `timestamptz` | no | `now()` | — |
 
 ### `teams`
@@ -88,6 +88,15 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 - `scrims.organizer_id` → `profiles.id`
 - `scrim_teams.scrim_id` → `scrims.id`
 - `scrim_teams.team_id` → `teams.id`
+
+## Docker Volumes
+
+| Volume | Contents | Owner |
+|--------|----------|-------|
+| `supabase_db_app` | Postgres data (all tables, migrations) | Supabase CLI |
+| `supabase_storage_app` | Supabase Storage objects | Supabase CLI |
+
+Both volumes are declared as `external` in `docker-compose.dev.yml` — `docker compose down -v` will never remove them. To intentionally wipe data, run `make db-reset` (re-applies migrations) or manually `docker volume rm supabase_db_app supabase_storage_app`.
 
 ## Migrations
 
