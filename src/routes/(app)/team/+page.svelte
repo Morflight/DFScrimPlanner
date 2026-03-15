@@ -1,0 +1,147 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import type { ActionData, PageData } from './$types';
+
+	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let creatingTeam = $state(false);
+	let inviting = $state(false);
+	let removing = $state<string | null>(null);
+</script>
+
+<div class="p-8 max-w-3xl space-y-8">
+	<div>
+		<h1 class="text-2xl font-bold tracking-tight">My Team</h1>
+	</div>
+
+	{#if form?.error}
+		<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{form.error}</p>
+	{/if}
+
+	{#if !data.team}
+		<!-- Create team -->
+		<section class="space-y-4">
+			<p class="text-sm text-muted-foreground">You're not part of a team. Create one to start scheduling scrims.</p>
+			<form
+				method="POST"
+				action="?/create-team"
+				use:enhance={() => {
+					creatingTeam = true;
+					return async ({ update }) => { creatingTeam = false; await update(); };
+				}}
+				class="flex gap-2 max-w-sm"
+			>
+				<input
+					name="name"
+					type="text"
+					required
+					minlength="2"
+					placeholder="Team name"
+					class="flex-1 px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+				/>
+				<button
+					type="submit"
+					disabled={creatingTeam}
+					class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+				>
+					{creatingTeam ? 'Creating…' : 'Create'}
+				</button>
+			</form>
+		</section>
+	{:else}
+		<!-- Team header -->
+		<section class="border border-border rounded-lg p-4">
+			<h2 class="font-semibold">{data.team.name}</h2>
+			<p class="text-xs text-muted-foreground mt-0.5">{data.isLeader ? 'You are the team leader' : 'Member'}</p>
+		</section>
+
+		<!-- Roster -->
+		<section class="space-y-3">
+			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Roster</h3>
+			{#if data.members.length === 0}
+				<p class="text-sm text-muted-foreground">No active members yet.</p>
+			{:else}
+				<div class="space-y-2">
+					{#each data.members as member}
+						<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
+							<div>
+								<p class="text-sm font-medium">{(member.profiles as any)?.username ?? member.invite_email}</p>
+								<p class="text-xs text-muted-foreground">{(member.profiles as any)?.timezone ?? ''}</p>
+							</div>
+							{#if data.isLeader && member.user_id !== data.team.leader_id}
+								<form
+									method="POST"
+									action="?/remove-member"
+									use:enhance={() => {
+										removing = member.id;
+										return async ({ update }) => { removing = null; await update(); };
+									}}
+								>
+									<input type="hidden" name="member_id" value={member.id} />
+									<button
+										type="submit"
+										disabled={removing === member.id}
+										class="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+									>
+										Remove
+									</button>
+								</form>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+
+		<!-- Pending invites -->
+		{#if data.pendingInvites.length > 0}
+			<section class="space-y-3">
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pending Invites</h3>
+				<div class="space-y-2">
+					{#each data.pendingInvites as invite}
+						<div class="border border-dashed border-border rounded-lg px-4 py-3 flex items-center justify-between">
+							<p class="text-sm">{invite.invite_email}</p>
+							<span class="text-xs text-muted-foreground">Invite sent</span>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
+		<!-- Invite member (leader only) -->
+		{#if data.isLeader}
+			<section class="space-y-3">
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Invite a Teammate</h3>
+				{#if form?.inviteError}
+					<p class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{form.inviteError}</p>
+				{/if}
+				{#if form?.inviteSuccess}
+					<p class="text-sm text-green-600 bg-green-500/10 px-3 py-2 rounded-md">Invite sent successfully.</p>
+				{/if}
+				<form
+					method="POST"
+					action="?/invite-member"
+					use:enhance={() => {
+						inviting = true;
+						return async ({ update }) => { inviting = false; await update(); };
+					}}
+					class="flex gap-2 max-w-sm"
+				>
+					<input
+						name="email"
+						type="email"
+						required
+						placeholder="teammate@example.com"
+						class="flex-1 px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+					/>
+					<button
+						type="submit"
+						disabled={inviting}
+						class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+					>
+						{inviting ? 'Sending…' : 'Invite'}
+					</button>
+				</form>
+			</section>
+		{/if}
+	{/if}
+</div>

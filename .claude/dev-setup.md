@@ -12,16 +12,20 @@
 ## First-Time Setup
 
 ```bash
-npm install                  # Install SvelteKit + all dependencies
-supabase init                # Initialize Supabase CLI (creates supabase/ folder)
-# Copy .env.local.example to .env.local
-supabase start               # Start local Supabase stack; copy output keys into .env.local
-make dev                     # Start app container on reverse-proxy
+make init        # Scaffold SvelteKit + run supabase init (both via containers — no local installs needed)
+make start       # Start Supabase local stack + SvelteKit app container
+```
+
+On first `make start`, copy the keys from `supabase start` output into `.env.local`:
+```
+PUBLIC_SUPABASE_URL=http://host.docker.internal:54321
+PUBLIC_SUPABASE_ANON_KEY=<anon key from supabase start output>
+SUPABASE_SERVICE_ROLE_KEY=<service_role key from supabase start output>
 ```
 
 App: https://dfscrimplanner.local.com
 Supabase Studio: http://localhost:54323
-Supabase API: http://localhost:54321
+Supabase API: http://localhost:54321 (host) / http://host.docker.internal:54321 (from app container)
 
 ## Environment Variables
 
