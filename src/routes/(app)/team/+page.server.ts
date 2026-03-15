@@ -46,18 +46,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.single();
 	const viewerTz = profile?.timezone ?? 'UTC';
 
-	// Build grid days for the current week (Mon–Sun) in the viewer's timezone
-	const start = weekStart(viewerTz);
-	const validDates = new Set<string>();
+	// Build grid days: 7 days starting from today in the viewer's timezone
+	const now = new Date();
 	const dateFmt = new Intl.DateTimeFormat('en-US', {
 		timeZone: viewerTz,
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit'
 	});
+	const todayParts = dateFmt.formatToParts(now);
+	const ty = todayParts.find((p) => p.type === 'year')?.value ?? '';
+	const tm = todayParts.find((p) => p.type === 'month')?.value ?? '';
+	const td = todayParts.find((p) => p.type === 'day')?.value ?? '';
+	const start = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
+
+	const validDates = new Set<string>();
 	const gridDays = Array.from({ length: 7 }, (_, i) => {
 		const d = new Date(start);
-		d.setDate(start.getDate() + i);
+		d.setUTCDate(start.getUTCDate() + i);
 		const parts = dateFmt.formatToParts(d);
 		const y = parts.find((p) => p.type === 'year')?.value ?? '';
 		const mo = parts.find((p) => p.type === 'month')?.value ?? '';
@@ -71,44 +77,51 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		};
 	});
 
-	// Compute team availability: intersection of all active members' availability slots
-	let teamSlots: string[] = [];
+	// All user IDs to include: team leader first, then active members
 	const memberUserIds = members
 		.filter((m: any) => m.user_id)
 		.map((m: any) => m.user_id as string);
+	const allUserIds = team
+		? [team.leader_id, ...memberUserIds.filter((id) => id !== team.leader_id)]
+		: memberUserIds;
 
-	if (memberUserIds.length > 0) {
-		const weekStart_ = start.toISOString();
-		const weekEnd_ = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+	const memberSlots: { userId: string; username: string; slots: string[] }[] = [];
 
-		const { data: allAvails } = await supabaseAdmin
-			.from('availabilities')
-			.select('user_id, starts_at, ends_at')
-			.in('user_id', memberUserIds)
-			.lt('starts_at', weekEnd_)
-			.gt('ends_at', weekStart_);
+	if (allUserIds.length > 0) {
+		const windowStart = start.toISOString();
+		const windowEnd = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-		// Build slot set per member
-		const slotsByMember = new Map<string, Set<string>>();
-		for (const uid of memberUserIds) slotsByMember.set(uid, new Set());
+		// Fetch profiles and availabilities for all users (admin client bypasses RLS)
+		const [{ data: profileRows }, { data: allAvails }] = await Promise.all([
+			supabaseAdmin.from('profiles').select('id, username').in('id', allUserIds),
+			supabaseAdmin
+				.from('availabilities')
+				.select('user_id, starts_at, ends_at')
+				.in('user_id', allUserIds)
+				.lt('starts_at', windowEnd)
+				.gt('ends_at', windowStart)
+		]);
+
+		const profileMap = new Map(profileRows?.map((p) => [p.id, p.username as string]) ?? []);
+
+		const slotsByUser = new Map<string, Set<string>>();
+		for (const uid of allUserIds) slotsByUser.set(uid, new Set());
 		for (const avail of allAvails ?? []) {
 			const slots = slotsFromWindow(avail.starts_at, avail.ends_at, viewerTz, validDates);
-			const s = slotsByMember.get(avail.user_id);
+			const s = slotsByUser.get(avail.user_id);
 			if (s) for (const k of slots) s.add(k);
 		}
 
-		// Intersect all members' sets
-		const sets = [...slotsByMember.values()];
-		const intersection = new Set(sets[0]);
-		for (let i = 1; i < sets.length; i++) {
-			for (const slot of intersection) {
-				if (!sets[i].has(slot)) intersection.delete(slot);
-			}
+		for (const uid of allUserIds) {
+			memberSlots.push({
+				userId: uid,
+				username: profileMap.get(uid) ?? uid,
+				slots: Array.from(slotsByUser.get(uid)!)
+			});
 		}
-		teamSlots = Array.from(intersection);
 	}
 
-	return { team, isLeader, members, pendingInvites, teamSlots, gridDays };
+	return { team, isLeader, members, pendingInvites, memberSlots, gridDays };
 };
 
 export const actions: Actions = {

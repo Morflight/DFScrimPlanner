@@ -33,7 +33,8 @@ src/routes/
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| AvailabilityGrid | `lib/components/AvailabilityGrid.svelte` | 7-day × 48-slot clickable grid; click+drag to select; emits `onchange(Set<string>)` with slot keys (`"YYYY-MM-DDTHH:MM"` in user tz); accepts `readonly={true}` to disable interaction (used on team page for team availability display) |
+| AvailabilityGrid | `lib/components/AvailabilityGrid.svelte` | 7-day × 48-slot clickable grid; click+drag to select; emits `onchange(Set<string>)` with slot keys (`"YYYY-MM-DDTHH:MM"` in user tz); accepts `readonly={true}` to disable interaction |
+| TeamAvailabilityGrid | `lib/components/TeamAvailabilityGrid.svelte` | Read-only multi-member grid: one colored bar row per member per day + a Team row showing overlap count; green highlight when ≥3 members overlap in a ≥3h contiguous run; legend below. Props: `days: Day[]`, `members: { userId, username, slotSet: Set<string> }[]` |
 | TimezoneSelect | `lib/components/` | IANA timezone picker (planned) |
 | UserAvatar | `lib/components/` | Profile avatar + name (planned) |
 

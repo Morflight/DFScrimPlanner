@@ -6,14 +6,15 @@
 -- Players: player{1-18}@dev.local / test1234
 --
 -- 9 teams × 3 players (1 leader + 2 members each)
--- All players have availability pre-filled (UTC 17:00–22:00):
---   Group A – Teams 1–3 (Phoenix/Wolves/Falcons): Mon 16, Wed 18, Fri 20 Mar
---   Group B – Teams 4–6 (Ghosts/Thunder/Shadow):  Tue 17, Thu 19, Sat 21 Mar
---   Group C – Teams 7–9 (Arctic/Storm/Hunters):   Wed 18, Fri 20, Sun 22 Mar
+-- All players have availability pre-filled (UTC 17:00–22:00), relative to seed date:
+--   anchor = Monday of the week after seed date
+--   Group A – Teams 1–3 (Phoenix/Wolves/Falcons): anchor Mon, Wed, Fri
+--   Group B – Teams 4–6 (Ghosts/Thunder/Shadow):  anchor Tue, Thu, Sat
+--   Group C – Teams 7–9 (Arctic/Storm/Hunters):   anchor Wed, Fri, Sun
 --
 -- Scrim matchable slots:
---   Wed 18 Mar 17:00 UTC → Groups A + C both free (6 teams)
---   Fri 20 Mar 17:00 UTC → Groups A + C both free (6 teams)
+--   anchor+Wed 17:00 UTC → Groups A + C both free (6 teams)
+--   anchor+Fri 17:00 UTC → Groups A + C both free (6 teams)
 -- ============================================================
 
 -- ── Admin account ────────────────────────────────────────────
@@ -200,13 +201,17 @@ on conflict do nothing;
 
 -- ── Availabilities ────────────────────────────────────────────
 -- Each window is 17:00–22:00 UTC (5h, enough for a 3h scrim with buffer)
--- Group A users: L1, P1, P2, L2, P3, P4, L3, P5, P6
--- Group B users: L4, P7, P8, L5, P9, P10, L6, P11, P12
--- Group C users: L7, P13, P14, L8, P15, P16, L9, P17, P18
+-- Dates are relative to CURRENT_DATE so data is always visible when seeded:
+--   anchor = Monday of next week from seed date
+--   Group A (Teams 1-3): anchor+0 (Mon), anchor+2 (Wed), anchor+4 (Fri)
+--   Group B (Teams 4-6): anchor+1 (Tue), anchor+3 (Thu), anchor+5 (Sat)
+--   Group C (Teams 7-9): anchor+2 (Wed), anchor+4 (Fri), anchor+6 (Sun)
+-- Scrim-matchable slots: anchor+2 (Wed 17:00 UTC) → Groups A+C; anchor+4 (Fri) → Groups A+C
 
 do $$
 declare
-  -- Group A: Teams 1-3 → Mon 16, Wed 18, Fri 20 Mar 2026
+  anchor date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;
+
   group_a_users uuid[] := array[
     '00000000-0000-0000-1000-000000000001'::uuid, -- L1
     '00000000-0000-0000-2000-000000000001'::uuid, -- P1
@@ -218,13 +223,8 @@ declare
     '00000000-0000-0000-2000-000000000005'::uuid, -- P5
     '00000000-0000-0000-2000-000000000006'::uuid  -- P6
   ];
-  group_a_days timestamptz[] := array[
-    '2026-03-16 17:00:00+00'::timestamptz, -- Mon
-    '2026-03-18 17:00:00+00'::timestamptz, -- Wed
-    '2026-03-20 17:00:00+00'::timestamptz  -- Fri
-  ];
+  group_a_days timestamptz[];
 
-  -- Group B: Teams 4-6 → Tue 17, Thu 19, Sat 21 Mar 2026
   group_b_users uuid[] := array[
     '00000000-0000-0000-1000-000000000004'::uuid, -- L4
     '00000000-0000-0000-2000-000000000007'::uuid, -- P7
@@ -236,13 +236,8 @@ declare
     '00000000-0000-0000-2000-000000000011'::uuid, -- P11
     '00000000-0000-0000-2000-000000000012'::uuid  -- P12
   ];
-  group_b_days timestamptz[] := array[
-    '2026-03-17 17:00:00+00'::timestamptz, -- Tue
-    '2026-03-19 17:00:00+00'::timestamptz, -- Thu
-    '2026-03-21 17:00:00+00'::timestamptz  -- Sat
-  ];
+  group_b_days timestamptz[];
 
-  -- Group C: Teams 7-9 → Wed 18, Fri 20, Sun 22 Mar 2026
   group_c_users uuid[] := array[
     '00000000-0000-0000-1000-000000000007'::uuid, -- L7
     '00000000-0000-0000-2000-000000000013'::uuid, -- P13
@@ -254,15 +249,27 @@ declare
     '00000000-0000-0000-2000-000000000017'::uuid, -- P17
     '00000000-0000-0000-2000-000000000018'::uuid  -- P18
   ];
-  group_c_days timestamptz[] := array[
-    '2026-03-18 17:00:00+00'::timestamptz, -- Wed
-    '2026-03-20 17:00:00+00'::timestamptz, -- Fri
-    '2026-03-22 17:00:00+00'::timestamptz  -- Sun
-  ];
+  group_c_days timestamptz[];
 
   uid  uuid;
   day  timestamptz;
 begin
+  group_a_days := array[
+    (anchor + interval '0 days')::timestamptz + interval '17 hours', -- Mon
+    (anchor + interval '2 days')::timestamptz + interval '17 hours', -- Wed
+    (anchor + interval '4 days')::timestamptz + interval '17 hours'  -- Fri
+  ];
+  group_b_days := array[
+    (anchor + interval '1 day')::timestamptz  + interval '17 hours', -- Tue
+    (anchor + interval '3 days')::timestamptz + interval '17 hours', -- Thu
+    (anchor + interval '5 days')::timestamptz + interval '17 hours'  -- Sat
+  ];
+  group_c_days := array[
+    (anchor + interval '2 days')::timestamptz + interval '17 hours', -- Wed
+    (anchor + interval '4 days')::timestamptz + interval '17 hours', -- Fri
+    (anchor + interval '6 days')::timestamptz + interval '17 hours'  -- Sun
+  ];
+
   -- Group A
   foreach uid in array group_a_users loop
     foreach day in array group_a_days loop
