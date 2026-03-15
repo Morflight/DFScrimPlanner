@@ -34,6 +34,9 @@ types:
 migration:
 	$(SUPABASE) migration new $(name)
 
+migrate:
+	$(SUPABASE) db push
+
 db-reset:
 	$(SUPABASE) db reset
 

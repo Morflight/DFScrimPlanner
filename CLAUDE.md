@@ -26,7 +26,8 @@ make build        # Production build (used by Netlify)
 make deploy       # Push to master → Netlify auto-deploys
 make types        # Regenerate Supabase TypeScript types
 make migration name=<name>   # Create a new migration
-make db-reset     # Reset DB: re-apply all migrations + seed
+make migrate      # Apply pending migrations WITHOUT wiping data (use this normally)
+make db-reset     # Reset DB: wipes all data, re-applies all migrations + seed
 ```
 
 Supabase Studio (dev): http://localhost:54323
