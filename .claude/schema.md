@@ -70,7 +70,7 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 | `profiles` | own profile | SELECT, UPDATE | `auth.uid() = id` |
 | `teams` | own team (leader) | ALL | `auth.uid() = leader_id` |
 | `teams` | member read | SELECT | user is in team_members |
-| `team_members` | own membership | SELECT, UPDATE | `auth.uid() = user_id` |
+| `team_members` | own membership | SELECT, UPDATE, DELETE | `auth.uid() = user_id` |
 | `team_members` | leader manage | ALL | user is leader of the team |
 | `availabilities` | own availability | ALL | `auth.uid() = user_id` |
 | `availabilities` | filler public read | SELECT | profile.role = 'filler' |
@@ -126,3 +126,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260315163755_fix_team_rls_recursion.sql` | SECURITY DEFINER helpers for all cross-table RLS; fix teams ↔ team_members and scrims ↔ scrim_teams cycles |
 | `20260315164825_drop_valid_window_constraint.sql` | Drop `valid_window` check constraint — 3h minimum enforced in slot-matching logic, not schema |
 | `20260316000001_team_member_edit_availability.sql` | `is_teammate_of()` SECURITY DEFINER (covers leader↔member); "Teammates can edit each other's availability" RLS policy on availabilities |
+| `20260316000002_member_leave_team.sql` | Add `DELETE` policy on `team_members` for own rows — was missing, causing leave-team to silently fail |

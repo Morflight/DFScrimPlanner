@@ -91,7 +91,7 @@
 					{#each data.members as member}
 						<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
 							<div>
-								<p class="text-sm font-medium">{(member.profiles as any)?.username ?? member.invite_email}</p>
+								<p class="text-sm font-medium">{(member.profiles as any)?.username}</p>
 								<p class="text-xs text-muted-foreground">{(member.profiles as any)?.timezone ?? ''}</p>
 							</div>
 							<div class="flex items-center gap-3">

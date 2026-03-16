@@ -115,8 +115,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		}
 	}
 
-	// Per-team aggregate slot data (for Pick Teams tab) — exclude viewer's own team
-	const teamSlotData = (teamsWithMembers ?? []).filter((t: any) => t.id !== myTeamId).map((team: any) => {
+	// Per-team aggregate slot data (for Pick Teams tab) — only meaningful if viewer has a team
+	const teamSlotData = myTeamId === null ? [] : (teamsWithMembers ?? []).filter((t: any) => t.id !== myTeamId).map((team: any) => {
 		const memberIds: string[] = [
 			team.leader_id as string,
 			...(team.team_members ?? [])
