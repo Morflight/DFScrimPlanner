@@ -192,7 +192,24 @@ export const actions: Actions = {
 		);
 
 		if (existingUser) {
-			// User already has an account — add directly without sending an invite email
+			// Check if they already belong to a team (as leader or active member)
+			const { data: existingMembership } = await supabaseAdmin
+				.from('team_members')
+				.select('team_id')
+				.eq('user_id', existingUser.id)
+				.eq('status', 'active')
+				.maybeSingle();
+			const { data: ledTeamCheck } = await supabaseAdmin
+				.from('teams')
+				.select('id')
+				.eq('leader_id', existingUser.id)
+				.maybeSingle();
+
+			if (existingMembership || ledTeamCheck) {
+				return fail(400, { inviteError: 'This user already belongs to a team.' });
+			}
+
+			// User has an account but no team — add directly without sending an invite email
 			const { error: memberError } = await supabaseAdmin.from('team_members').insert({
 				team_id: team.id,
 				user_id: existingUser.id,
