@@ -8,7 +8,15 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const type = url.searchParams.get('type');
 	const next = url.searchParams.get('next');
 
-	// Exchange the token for a session — this overwrites any existing session cookies.
+	// If a user is already logged in, sign them out server-side so the invite/recovery
+	// token starts a fresh session. We use supabaseAdmin to revoke the old session
+	// without touching the SSR client's cookie state (which would break verifyOtp).
+	const { data: { session: existingSession } } = await supabase.auth.getSession();
+	if (existingSession) {
+		await supabaseAdmin.auth.admin.signOut(existingSession.access_token);
+	}
+
+	// Exchange the token for a new session.
 	if (code) {
 		const { error } = await supabase.auth.exchangeCodeForSession(code);
 		if (error) redirect(303, '/login');
