@@ -4,6 +4,7 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let creating = $state(false);
+	let selectedRole = $state('player');
 
 	function formatDate(iso: string | null) {
 		if (!iso) return '—';
@@ -61,6 +62,7 @@
 				<select
 					id="role"
 					name="role"
+					bind:value={selectedRole}
 					class="px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
 				>
 					<option value="player">Player</option>
@@ -69,6 +71,21 @@
 					<option value="admin">Admin</option>
 				</select>
 			</div>
+
+			{#if selectedRole === 'leader'}
+				<div class="space-y-1">
+					<label class="text-xs font-medium" for="team_name">Team name</label>
+					<input
+						id="team_name"
+						name="team_name"
+						type="text"
+						required
+						minlength="2"
+						placeholder="e.g. Alpha Squad"
+						class="px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring w-48"
+					/>
+				</div>
+			{/if}
 
 			<button
 				type="submit"
@@ -96,6 +113,7 @@
 							<th class="text-left px-4 py-2 font-medium text-muted-foreground">Email</th>
 							<th class="text-left px-4 py-2 font-medium text-muted-foreground">Username</th>
 							<th class="text-left px-4 py-2 font-medium text-muted-foreground">Role</th>
+							<th class="text-left px-4 py-2 font-medium text-muted-foreground">Team</th>
 							<th class="text-left px-4 py-2 font-medium text-muted-foreground">Last sign-in</th>
 						</tr>
 					</thead>
@@ -109,6 +127,7 @@
 										{u.role}
 									</span>
 								</td>
+								<td class="px-4 py-2.5 text-muted-foreground">{u.team ?? '—'}</td>
 								<td class="px-4 py-2.5 text-muted-foreground text-xs">{formatDate(u.last_sign_in_at)}</td>
 							</tr>
 						{/each}
