@@ -8,6 +8,9 @@
 	onMount(async () => {
 		const supabase = data.supabase;
 
+		// Sign out any existing session so the new invite/recovery token takes over.
+		await supabase.auth.signOut();
+
 		// Supabase implicit flow puts tokens in the URL fragment (#access_token=...).
 		// The server can't see fragments, so we handle them client-side.
 		const hash = window.location.hash;
