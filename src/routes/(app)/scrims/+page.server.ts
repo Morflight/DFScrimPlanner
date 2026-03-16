@@ -267,10 +267,32 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const startsAt = data.get('starts_at') as string;
-		const teamIds = data.getAll('team_id') as string[];
+		const opponentTeamIds = data.getAll('team_id') as string[];
 
 		if (!startsAt) return fail(400, { error: 'Missing start time.' });
-		if (teamIds.length !== 6) return fail(400, { error: 'Exactly 6 teams are required.' });
+		if (opponentTeamIds.length !== 5) return fail(400, { error: 'Exactly 5 opponent teams are required.' });
+
+		// Resolve the organizer's own team and include it in the scrim
+		const { data: ledTeam } = await supabase
+			.from('teams')
+			.select('id')
+			.eq('leader_id', user.id)
+			.limit(1)
+			.maybeSingle();
+		let myTeamId: string | null = ledTeam?.id ?? null;
+		if (!myTeamId) {
+			const { data: membership } = await supabase
+				.from('team_members')
+				.select('team_id')
+				.eq('user_id', user.id)
+				.eq('status', 'active')
+				.limit(1)
+				.maybeSingle();
+			myTeamId = membership?.team_id ?? null;
+		}
+		if (!myTeamId) return fail(400, { error: 'You must be part of a team to create a scrim.' });
+
+		const teamIds = [myTeamId, ...opponentTeamIds];
 
 		const { data: scrim, error: scrimError } = await supabase
 			.from('scrims')
