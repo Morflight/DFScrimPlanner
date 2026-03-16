@@ -6,6 +6,17 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	// If no session, user followed a direct link — redirect to login
 	if (!user) redirect(303, '/login');
+
+	// Link team_members row to this user (sets user_id, keeps status='invited').
+	// Activation happens in the form action after the user sets their password.
+	if (user.email) {
+		await supabaseAdmin
+			.from('team_members')
+			.update({ user_id: user.id })
+			.eq('invite_email', user.email)
+			.eq('status', 'invited');
+	}
+
 	return { defaultUsername: user.email?.split('@')[0] ?? '' };
 };
 
