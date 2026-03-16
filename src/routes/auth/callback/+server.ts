@@ -6,7 +6,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
 	const token_hash = url.searchParams.get('token_hash');
 	const type = url.searchParams.get('type');
-	const next = url.searchParams.get('next') ?? '/dashboard';
+	const next = url.searchParams.get('next');
 
 	if (code) {
 		await supabase.auth.exchangeCodeForSession(code);
@@ -14,12 +14,12 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 		await supabase.auth.verifyOtp({ token_hash, type: type as any });
 	}
 
-	// Link team_members row to the newly authenticated user
 	const {
 		data: { user }
 	} = await supabase.auth.getUser();
 
 	if (user?.email) {
+		// Link team_members row to the newly authenticated user (only for invite flow)
 		await supabaseAdmin
 			.from('team_members')
 			.update({ user_id: user.id, status: 'active', activated_at: new Date().toISOString() })
@@ -27,5 +27,14 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 			.eq('status', 'invited');
 	}
 
-	redirect(303, next);
+	// Route based on flow type
+	if (next) {
+		redirect(303, next);
+	} else if (type === 'recovery') {
+		redirect(303, '/reset-password');
+	} else if (type === 'invite') {
+		redirect(303, '/register');
+	} else {
+		redirect(303, '/dashboard');
+	}
 };
