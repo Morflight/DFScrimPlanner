@@ -1,12 +1,26 @@
 <script lang="ts">
 	import { Sun, Moon, User, Globe, Shield } from 'lucide-svelte';
+	import { enhance } from '$app/forms';
 	import { theme } from '$lib/stores/theme';
-	import type { PageData } from './$types';
+	import type { ActionData, PageData } from './$types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const profile = (data as any).profile;
+	const profile = $derived((data as any).profile);
 	const user = (data as any).user;
+
+	let editing = $state(false);
+	let usernameInput = $state('');
+	let saving = $state(false);
+
+	function startEdit() {
+		usernameInput = profile?.username ?? '';
+		editing = true;
+	}
+
+	function cancelEdit() {
+		editing = false;
+	}
 
 	const isDark = $derived($theme === 'dark');
 
@@ -17,9 +31,9 @@
 		filler: 'bg-green-500/15 text-green-600 dark:text-green-400'
 	};
 
-	const role: string = profile?.role ?? 'player';
-	const roleClass = roleColors[role] ?? roleColors.player;
-	const initial = (profile?.username ?? user?.email ?? '?')[0].toUpperCase();
+	const role = $derived<string>(profile?.role ?? 'player');
+	const roleClass = $derived(roleColors[role] ?? roleColors.player);
+	const initial = $derived((profile?.username ?? user?.email ?? '?')[0].toUpperCase());
 </script>
 
 <div class="px-4 py-6 md:p-8 max-w-2xl">
@@ -42,7 +56,62 @@
 			</div>
 			<!-- Info -->
 			<div class="flex-1 min-w-0">
-				<p class="font-semibold truncate">{profile?.username ?? '—'}</p>
+				{#if editing}
+					<form
+						method="POST"
+						action="?/update-username"
+						use:enhance={() => {
+							saving = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								saving = false;
+								if (!form?.error) editing = false;
+							};
+						}}
+						class="flex items-center gap-2"
+					>
+						<input
+							name="username"
+							type="text"
+							bind:value={usernameInput}
+							maxlength={32}
+							required
+							autofocus
+							class="flex-1 min-w-0 h-8 px-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+						/>
+						<button
+							type="submit"
+							disabled={saving}
+							class="h-8 px-3 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors shrink-0"
+						>
+							{saving ? 'Saving…' : 'Save'}
+						</button>
+						<button
+							type="button"
+							onclick={cancelEdit}
+							class="h-8 px-3 text-xs font-medium rounded-md border border-border hover:bg-accent transition-colors shrink-0"
+						>
+							Cancel
+						</button>
+					</form>
+					{#if form?.error}
+						<p class="text-xs text-destructive mt-1">{form.error}</p>
+					{/if}
+				{:else}
+					<div class="flex items-center gap-2 min-w-0">
+						<p class="font-semibold truncate">{profile?.username ?? '—'}</p>
+						<button
+							type="button"
+							onclick={startEdit}
+							class="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+						>
+							Edit
+						</button>
+					</div>
+					{#if form?.success}
+						<p class="text-xs text-green-600 dark:text-green-400 mt-0.5">Username updated.</p>
+					{/if}
+				{/if}
 				<p class="text-sm text-muted-foreground truncate mt-0.5">{user?.email ?? '—'}</p>
 			</div>
 			<!-- Role badge -->

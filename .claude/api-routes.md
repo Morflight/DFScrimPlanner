@@ -12,6 +12,7 @@
 | POST | `/admin/users?/create-user` | yes (admin only) | Invite a user with a specific role via `supabaseAdmin.auth.admin.inviteUserByEmail` |
 | GET | `/availability/[userId]` | yes | Load a teammate's profile + future availabilities; redirects to `/availability` if own userId, redirects to `/team` if not a teammate |
 | POST | `/availability/[userId]?/save` | yes | Replace a teammate's future availabilities; re-checks teammate relationship on every write; uses `supabaseAdmin` |
+| POST | `/profile?/update-username` | yes | Update own display username; max 32 chars; not unique |
 
 ## Supabase Direct Calls (client-side)
 
