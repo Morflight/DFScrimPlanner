@@ -38,7 +38,7 @@
 	);
 </script>
 
-<div class="p-8 max-w-3xl space-y-8">
+<div class="px-4 py-6 md:p-8 max-w-3xl space-y-8">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">Filler Players</h1>
 		<p class="text-sm text-muted-foreground mt-1">Solo players available to fill in for teams.</p>

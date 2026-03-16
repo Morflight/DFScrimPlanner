@@ -18,7 +18,7 @@
 	const tz = $derived(data.profile?.timezone ?? 'UTC');
 </script>
 
-<div class="p-8 max-w-4xl space-y-8">
+<div class="px-4 py-6 md:p-8 max-w-4xl space-y-8">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
 		<p class="text-sm text-muted-foreground mt-1">Welcome back, {data.profile?.username ?? 'Player'}</p>

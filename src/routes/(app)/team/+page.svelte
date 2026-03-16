@@ -13,7 +13,7 @@
 	);
 </script>
 
-<div class="p-8 max-w-3xl space-y-8">
+<div class="px-4 py-6 md:p-8 max-w-3xl space-y-8">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">My Team</h1>
 	</div>

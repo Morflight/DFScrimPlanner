@@ -113,7 +113,7 @@
 	}
 </script>
 
-<div class="p-6 max-w-5xl space-y-4">
+<div class="px-4 py-4 md:p-6 max-w-5xl space-y-4">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold tracking-tight">My Availability</h1>

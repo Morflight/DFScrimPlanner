@@ -22,7 +22,7 @@
 	const initial = (profile?.username ?? user?.email ?? '?')[0].toUpperCase();
 </script>
 
-<div class="p-8 max-w-2xl">
+<div class="px-4 py-6 md:p-8 max-w-2xl">
 	<div class="mb-8">
 		<h1 class="text-2xl font-bold tracking-tight">Profile</h1>
 		<p class="text-sm text-muted-foreground mt-1">Manage your account settings and preferences.</p>
