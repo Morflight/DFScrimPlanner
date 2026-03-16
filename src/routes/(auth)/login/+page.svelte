@@ -65,5 +65,11 @@
 		<p class="text-center text-xs text-muted-foreground">
 			No account? You need an invitation from a team leader.
 		</p>
+
+		<div class="border border-yellow-500/30 bg-yellow-500/5 rounded-md px-3 py-2 text-center">
+			<p class="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+				DFScrimPlanner is free and open-source. If anyone is charging you for access or accounts, it is unauthorized and against the project license.
+			</p>
+		</div>
 	</div>
 </div>
