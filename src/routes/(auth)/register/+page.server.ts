@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase';
 
 export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -35,6 +36,13 @@ export const actions: Actions = {
 			.eq('id', user.id);
 
 		if (profileError) return fail(500, { error: profileError.message, username });
+
+		// Activate team membership now that registration is complete
+		await supabaseAdmin
+			.from('team_members')
+			.update({ status: 'active', activated_at: new Date().toISOString() })
+			.eq('user_id', user.id)
+			.eq('status', 'invited');
 
 		redirect(303, '/dashboard');
 	}

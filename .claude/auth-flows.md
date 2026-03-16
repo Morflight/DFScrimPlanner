@@ -5,10 +5,11 @@
 1. Leader/member clicks **Invite** on `/team`, or admin clicks **Send invite** on `/admin/users`
 2. Server calls `supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: '/auth/callback' })`
 3. Supabase sends email with a one-time link
-4. User clicks link → `GET /auth/callback?token_hash=...&type=invite`
-5. Callback exchanges token for session, links `team_members` row (sets `user_id`, `status=active`)
-6. Callback redirects to `/register`
-7. User sets username, timezone, password → redirected to `/dashboard`
+4. User clicks link → Supabase verifies token → redirects to `/auth/callback#access_token=...&type=invite` (implicit flow)
+5. Client-side callback: signs out any existing session, calls `setSession()` with tokens from the URL fragment
+6. Callback links `team_members` row (sets `user_id` only — status stays `invited` until registration completes)
+7. Callback navigates to `/register`
+8. User sets username, timezone, password → register action activates `team_members` row (`status=active`) → redirected to `/dashboard`
 
 ## Sign In
 
