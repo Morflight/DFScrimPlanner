@@ -176,16 +176,36 @@ export const actions: Actions = {
 		const team = teamId ? { id: teamId } : null;
 		if (!team) return fail(403, { inviteError: 'You must be a team leader or member to invite.' });
 
-		// Don't re-invite same email
+		// Don't re-invite same email within this team
 		const { data: existing } = await supabase
 			.from('team_members')
 			.select('id')
 			.eq('team_id', team.id)
 			.eq('invite_email', email)
 			.maybeSingle();
-		if (existing) return fail(400, { inviteError: 'This email has already been invited.' });
+		if (existing) return fail(400, { inviteError: 'This email has already been invited to this team.' });
 
-		// Create the team_members row first
+		// Check if the email belongs to an existing Supabase user
+		const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+		const existingUser = (authUsers?.users ?? []).find(
+			(u) => u.email?.toLowerCase() === email
+		);
+
+		if (existingUser) {
+			// User already has an account — add directly without sending an invite email
+			const { error: memberError } = await supabaseAdmin.from('team_members').insert({
+				team_id: team.id,
+				user_id: existingUser.id,
+				invite_email: email,
+				invite_token: crypto.randomUUID(),
+				status: 'active',
+				activated_at: new Date().toISOString()
+			});
+			if (memberError) return fail(500, { inviteError: memberError.message });
+			return { inviteSuccess: true };
+		}
+
+		// New user — create the team_members row first, then send invite email
 		const { error: memberError } = await supabase.from('team_members').insert({
 			team_id: team.id,
 			invite_email: email,

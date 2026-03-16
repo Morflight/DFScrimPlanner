@@ -36,6 +36,13 @@ export const actions: Actions = {
 		if (!email) return fail(400, { createError: 'Email is required.' });
 		if (!VALID_ROLES.includes(role)) return fail(400, { createError: 'Invalid role.' });
 
+		// Check for duplicate before inviting
+		const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+		const alreadyExists = (authUsers?.users ?? []).some(
+			(u) => u.email?.toLowerCase() === email
+		);
+		if (alreadyExists) return fail(400, { createError: 'A user with this email already exists.' });
+
 		// Invite via Supabase Auth — sends a password-setup email
 		const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
 			redirectTo: `${url.origin}/auth/callback`,
