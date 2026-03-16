@@ -8,24 +8,23 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const type = url.searchParams.get('type');
 	const next = url.searchParams.get('next');
 
-	// Invalidate any existing session before processing an invite or recovery link.
-	// This ensures the incoming token always starts a clean, dedicated session and
-	// a logged-in user who clicks someone else's invite (or their own reset link)
-	// doesn't end up mixing sessions.
-	await supabase.auth.signOut();
-
+	// Exchange the token for a session — this overwrites any existing session cookies.
 	if (code) {
-		await supabase.auth.exchangeCodeForSession(code);
+		const { error } = await supabase.auth.exchangeCodeForSession(code);
+		if (error) redirect(303, '/login');
 	} else if (token_hash && type) {
-		await supabase.auth.verifyOtp({ token_hash, type: type as any });
+		const { error } = await supabase.auth.verifyOtp({ token_hash, type: type as any });
+		if (error) redirect(303, '/login');
 	}
 
 	const {
 		data: { user }
 	} = await supabase.auth.getUser();
 
-	if (user?.email) {
-		// Link team_members row to the newly authenticated user (only for invite flow)
+	if (!user) redirect(303, '/login');
+
+	// Link team_members row to the newly authenticated user (only for invite flow)
+	if (user.email) {
 		await supabaseAdmin
 			.from('team_members')
 			.update({ user_id: user.id, status: 'active', activated_at: new Date().toISOString() })
