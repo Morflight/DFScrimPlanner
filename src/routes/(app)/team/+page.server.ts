@@ -158,13 +158,23 @@ export const actions: Actions = {
 		const email = (data.get('email') as string)?.trim().toLowerCase();
 		if (!email) return fail(400, { inviteError: 'Email is required.' });
 
-		// Must be a leader
-		const { data: team } = await supabase
+		// Must be leader or active member of a team
+		const { data: ledTeam } = await supabase
 			.from('teams')
 			.select('id')
 			.eq('leader_id', user.id)
 			.maybeSingle();
-		if (!team) return fail(403, { inviteError: 'Only team leaders can invite members.' });
+		const { data: membership } = ledTeam
+			? { data: null }
+			: await supabase
+					.from('team_members')
+					.select('team_id')
+					.eq('user_id', user.id)
+					.eq('status', 'active')
+					.maybeSingle();
+		const teamId = ledTeam?.id ?? membership?.team_id;
+		const team = teamId ? { id: teamId } : null;
+		if (!team) return fail(403, { inviteError: 'You must be a team leader or member to invite.' });
 
 		// Don't re-invite same email
 		const { data: existing } = await supabase

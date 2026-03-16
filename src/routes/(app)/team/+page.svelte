@@ -132,8 +132,8 @@
 			{/if}
 		</section>
 
-		<!-- Invite member (leader only) -->
-		{#if data.isLeader}
+		<!-- Invite member (leader or active member) -->
+		{#if data.team}
 			<section class="space-y-3">
 				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Invite a Teammate</h3>
 				{#if form?.inviteError}
