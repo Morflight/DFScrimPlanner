@@ -244,6 +244,28 @@ export const actions: Actions = {
 		return { inviteSuccess: true };
 	},
 
+	'leave-team': async ({ locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) return fail(401, { error: 'Not authenticated.' });
+
+		// Leaders cannot leave — they must disband the team
+		const { data: ledTeam } = await supabase
+			.from('teams')
+			.select('id')
+			.eq('leader_id', user.id)
+			.maybeSingle();
+		if (ledTeam) return fail(403, { error: 'Team leaders cannot leave. Disband the team instead.' });
+
+		const { error } = await supabase
+			.from('team_members')
+			.delete()
+			.eq('user_id', user.id)
+			.eq('status', 'active');
+		if (error) return fail(500, { error: error.message });
+
+		redirect(303, '/team');
+	},
+
 	'remove-member': async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) return fail(401, { error: 'Not authenticated.' });

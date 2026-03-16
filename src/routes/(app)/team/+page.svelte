@@ -7,6 +7,7 @@
 	let creatingTeam = $state(false);
 	let inviting = $state(false);
 	let removing = $state<string | null>(null);
+	let leaving = $state(false);
 
 	const gridMembers = $derived(
 		(data.memberSlots ?? []).map((m) => ({ ...m, slotSet: new Set(m.slots) }))
@@ -54,9 +55,30 @@
 		</section>
 	{:else}
 		<!-- Team header -->
-		<section class="border border-border rounded-lg p-4">
-			<h2 class="font-semibold">{data.team.name}</h2>
-			<p class="text-xs text-muted-foreground mt-0.5">{data.isLeader ? 'You are the team leader' : 'Member'}</p>
+		<section class="border border-border rounded-lg p-4 flex items-center justify-between">
+			<div>
+				<h2 class="font-semibold">{data.team.name}</h2>
+				<p class="text-xs text-muted-foreground mt-0.5">{data.isLeader ? 'You are the team leader' : 'Member'}</p>
+			</div>
+			{#if !data.isLeader}
+				<form
+					method="POST"
+					action="?/leave-team"
+					use:enhance={() => {
+						leaving = true;
+						return async ({ update }) => { leaving = false; await update(); };
+					}}
+				>
+					<button
+						type="submit"
+						disabled={leaving}
+						onclick={(e) => { if (!confirm('Leave this team?')) e.preventDefault(); }}
+						class="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+					>
+						{leaving ? 'Leaving…' : 'Leave team'}
+					</button>
+				</form>
+			{/if}
 		</section>
 
 		<!-- Roster -->
