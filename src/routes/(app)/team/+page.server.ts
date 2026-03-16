@@ -280,6 +280,31 @@ export const actions: Actions = {
 		redirect(303, '/team');
 	},
 
+	'cancel-invite': async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) return fail(401, { error: 'Not authenticated.' });
+
+		const data = await request.formData();
+		const memberId = data.get('member_id') as string;
+
+		const { data: team } = await supabase
+			.from('teams')
+			.select('id')
+			.eq('leader_id', user.id)
+			.maybeSingle();
+		if (!team) return fail(403, { error: 'Only team leaders can cancel invites.' });
+
+		const { error } = await supabaseAdmin
+			.from('team_members')
+			.delete()
+			.eq('id', memberId)
+			.eq('team_id', team.id)
+			.eq('status', 'invited');
+		if (error) return fail(500, { error: error.message });
+
+		return {};
+	},
+
 	'remove-member': async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) return fail(401, { error: 'Not authenticated.' });

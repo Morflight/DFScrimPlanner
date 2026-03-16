@@ -142,7 +142,26 @@
 					{#each data.pendingInvites as invite}
 						<div class="border border-dashed border-border rounded-lg px-4 py-3 flex items-center justify-between">
 							<p class="text-sm">{invite.invite_email}</p>
-							<span class="text-xs text-muted-foreground">Invite sent</span>
+							<div class="flex items-center gap-3">
+								<span class="text-xs text-muted-foreground">Invite sent</span>
+								{#if data.isLeader}
+									<form
+										method="POST"
+										action="?/cancel-invite"
+										use:enhance={() => {
+											return async ({ update }) => { await update(); };
+										}}
+									>
+										<input type="hidden" name="member_id" value={invite.id} />
+										<button
+											type="submit"
+											class="text-xs text-destructive hover:text-destructive/80 transition-colors"
+										>
+											Cancel
+										</button>
+									</form>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</div>
