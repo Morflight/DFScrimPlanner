@@ -72,25 +72,35 @@
 								<p class="text-sm font-medium">{(member.profiles as any)?.username ?? member.invite_email}</p>
 								<p class="text-xs text-muted-foreground">{(member.profiles as any)?.timezone ?? ''}</p>
 							</div>
-							{#if data.isLeader && member.user_id !== data.team.leader_id}
-								<form
-									method="POST"
-									action="?/remove-member"
-									use:enhance={() => {
-										removing = member.id;
-										return async ({ update }) => { removing = null; await update(); };
-									}}
-								>
-									<input type="hidden" name="member_id" value={member.id} />
-									<button
-										type="submit"
-										disabled={removing === member.id}
-										class="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+							<div class="flex items-center gap-3">
+								{#if member.user_id && member.user_id !== data.profile?.id}
+									<a
+										href="/availability/{member.user_id}"
+										class="text-xs text-muted-foreground hover:text-foreground transition-colors"
 									>
-										Remove
-									</button>
-								</form>
-							{/if}
+										Edit availability
+									</a>
+								{/if}
+								{#if data.isLeader && member.user_id !== data.team.leader_id}
+									<form
+										method="POST"
+										action="?/remove-member"
+										use:enhance={() => {
+											removing = member.id;
+											return async ({ update }) => { removing = null; await update(); };
+										}}
+									>
+										<input type="hidden" name="member_id" value={member.id} />
+										<button
+											type="submit"
+											disabled={removing === member.id}
+											class="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+										>
+											Remove
+										</button>
+									</form>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</div>

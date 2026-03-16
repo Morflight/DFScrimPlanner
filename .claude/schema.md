@@ -74,6 +74,7 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 | `team_members` | leader manage | ALL | user is leader of the team |
 | `availabilities` | own availability | ALL | `auth.uid() = user_id` |
 | `availabilities` | filler public read | SELECT | profile.role = 'filler' |
+| `availabilities` | teammate edit | ALL | `is_teammate_of(user_id)` |
 | `scrims` | organizer manage | ALL | `auth.uid() = organizer_id` |
 | `scrims` | participant read | SELECT | user is in a scrim_team |
 | `scrim_teams` | organizer manage | ALL | user is scrim organizer |
@@ -109,7 +110,8 @@ Available helper functions (all `SECURITY DEFINER`):
 | `public.is_admin()` | caller is admin |
 | `public.is_team_leader(team_id)` | caller is leader of team |
 | `public.is_team_member_of(team_id)` | caller is member of team |
-| `public.shares_team_with(user_id)` | caller shares any team with user |
+| `public.shares_team_with(user_id)` | caller shares any team with user (checks team_members only) |
+| `public.is_teammate_of(user_id)` | caller shares a team with user — covers all roles: member↔member, leader→member, member→leader |
 | `public.is_scrim_organizer(scrim_id)` | caller is organizer of scrim |
 | `public.participates_in_scrim(scrim_id)` | caller is in any team of scrim |
 
@@ -123,3 +125,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260315160938_fix_admin_rls_recursion.sql` | `is_admin()` SECURITY DEFINER; fix profiles recursion |
 | `20260315163755_fix_team_rls_recursion.sql` | SECURITY DEFINER helpers for all cross-table RLS; fix teams ↔ team_members and scrims ↔ scrim_teams cycles |
 | `20260315164825_drop_valid_window_constraint.sql` | Drop `valid_window` check constraint — 3h minimum enforced in slot-matching logic, not schema |
+| `20260316000001_team_member_edit_availability.sql` | `is_teammate_of()` SECURITY DEFINER (covers leader↔member); "Teammates can edit each other's availability" RLS policy on availabilities |
