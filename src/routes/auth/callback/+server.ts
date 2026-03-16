@@ -8,6 +8,12 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const type = url.searchParams.get('type');
 	const next = url.searchParams.get('next');
 
+	// Invalidate any existing session before processing an invite or recovery link.
+	// This ensures the incoming token always starts a clean, dedicated session and
+	// a logged-in user who clicks someone else's invite (or their own reset link)
+	// doesn't end up mixing sessions.
+	await supabase.auth.signOut();
+
 	if (code) {
 		await supabase.auth.exchangeCodeForSession(code);
 	} else if (token_hash && type) {
