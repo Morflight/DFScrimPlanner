@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { ActionData } from './$types';
+	import PasswordInput from '$lib/components/PasswordInput.svelte';
 
 	let { form }: { form: ActionData } = $props();
 	let loading = $state(false);
@@ -42,15 +43,14 @@
 			</div>
 
 			<div class="space-y-1.5">
-				<label class="text-sm font-medium" for="password">Password</label>
-				<input
-					id="password"
-					name="password"
-					type="password"
-					required
-					autocomplete="current-password"
-					class="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-				/>
+				<div class="flex items-center justify-between">
+					<label class="text-sm font-medium" for="password">Password</label>
+					<a
+						href="/forgot-password"
+						class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+					>Forgot password?</a>
+				</div>
+				<PasswordInput id="password" name="password" required autocomplete="current-password" />
 			</div>
 
 			<button

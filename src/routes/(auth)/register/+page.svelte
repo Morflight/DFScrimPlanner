@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
+	import PasswordInput from '$lib/components/PasswordInput.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);
@@ -60,15 +61,7 @@
 
 			<div class="space-y-1.5">
 				<label class="text-sm font-medium" for="password">Set a password</label>
-				<input
-					id="password"
-					name="password"
-					type="password"
-					required
-					minlength="8"
-					autocomplete="new-password"
-					class="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-				/>
+				<PasswordInput id="password" name="password" required minlength={8} autocomplete="new-password" />
 			</div>
 
 			<button
