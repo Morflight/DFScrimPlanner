@@ -1,27 +1,45 @@
 # Auth Flows
 
-## Sign Up
+## Invite Flow (team member or admin-created user)
 
-<!-- Steps: form → Supabase Auth → email confirmation → session -->
+1. Leader/member clicks **Invite** on `/team`, or admin clicks **Send invite** on `/admin/users`
+2. Server calls `supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: '/auth/callback' })`
+3. Supabase sends email with a one-time link
+4. User clicks link → `GET /auth/callback?token_hash=...&type=invite`
+5. Callback exchanges token for session, links `team_members` row (sets `user_id`, `status=active`)
+6. Callback redirects to `/register`
+7. User sets username, timezone, password → redirected to `/dashboard`
 
 ## Sign In
 
-<!-- Steps: form → Supabase Auth → session cookie → redirect -->
+1. `/login` form → POST action → `supabase.auth.signInWithPassword({ email, password })`
+2. On success → `redirect(303, '/dashboard')`
+3. On failure → `fail(400, { error: message })`
+
+## Forgot Password
+
+1. `/forgot-password` form → POST action → `supabase.auth.resetPasswordForEmail(email, { redirectTo: '/auth/callback?next=/reset-password' })`
+2. Supabase sends reset email
+3. User clicks link → `GET /auth/callback?token_hash=...&type=recovery&next=/reset-password`
+4. Callback exchanges token for session, redirects to `/reset-password` (via `next` param)
+5. `/reset-password` form → POST action → `supabase.auth.updateUser({ password })`
+6. On success → `redirect(303, '/dashboard')`
 
 ## Sign Out
 
-<!-- Steps: client call → session cleared → redirect -->
-
-## Password Reset
-
-<!-- Steps: request → email → reset form → update password -->
+- `/signout` POST action → `supabase.auth.signOut()` → redirect to `/login`
 
 ## Session Handling
 
-<!-- How hooks.server.ts validates and refreshes the session on every request -->
+- `hooks.server.ts` creates a server-side Supabase client with SSR cookie handling on every request
+- `safeGetSession()` validates and refreshes the session; exposed via `locals`
+- `(app)/+layout.server.ts` calls `safeGetSession()` and redirects to `/login` if no session
 
 ## Protected Routes
 
-| Route | Guard | Redirect if unauthenticated |
-|-------|-------|-----------------------------|
-|       |       |                             |
+| Route | Guard | Redirect if unauthorized |
+|-------|-------|--------------------------|
+| `(app)/*` | `(app)/+layout.server.ts` — requires session | `/login` |
+| `/admin/*` | `admin/+layout.server.ts` — requires `role = 'admin'` | `/dashboard` |
+| `/register` | page load — requires session (user followed invite link) | `/login` |
+| `/reset-password` | page load — requires session (user followed reset link) | `/login` |
