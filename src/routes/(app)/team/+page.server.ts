@@ -204,8 +204,8 @@ export const actions: Actions = {
 			(u) => u.email?.toLowerCase() === email
 		);
 
-		if (existingUser) {
-			// Check if they already belong to a team (as leader or active member)
+		if (existingUser && existingUser.email_confirmed_at) {
+			// Validated account — add directly to the roster without sending an invite email
 			const { data: existingMembership } = await supabaseAdmin
 				.from('team_members')
 				.select('team_id')
@@ -222,7 +222,6 @@ export const actions: Actions = {
 				return fail(400, { inviteError: 'This user already belongs to a team.' });
 			}
 
-			// User has an account but no team — add directly without sending an invite email
 			const { error: memberError } = await supabaseAdmin.from('team_members').insert({
 				team_id: team.id,
 				user_id: existingUser.id,
