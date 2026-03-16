@@ -5,7 +5,7 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	// If no session, user followed a direct link — redirect to login
 	if (!user) redirect(303, '/login');
-	return {};
+	return { defaultUsername: user.email?.split('@')[0] ?? '' };
 };
 
 export const actions: Actions = {
