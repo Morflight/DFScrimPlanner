@@ -14,6 +14,8 @@
 		{ href: '/fillers', label: 'Fillers' },
 		{ href: '/profile', label: 'Profile' }
 	];
+
+	const isAdmin = $derived(data.profile?.role === 'admin');
 </script>
 
 <div class="min-h-screen bg-background md:flex">
@@ -65,6 +67,15 @@
 					{link.label}
 				</a>
 			{/each}
+			{#if isAdmin}
+				<a
+					href="/admin/users"
+					onclick={() => (sidebarOpen = false)}
+					class="flex items-center px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				>
+					Admin
+				</a>
+			{/if}
 		</nav>
 
 		<div class="px-4 py-4 border-t border-border space-y-1">
