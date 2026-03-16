@@ -68,6 +68,7 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 | Table | Policy Name | Command | Using / Check |
 |-------|-------------|---------|---------------|
 | `profiles` | own profile | SELECT, UPDATE | `auth.uid() = id` |
+| `profiles` | teammate read | SELECT | `shares_team_with(id)` |
 | `teams` | own team (leader) | ALL | `auth.uid() = leader_id` |
 | `teams` | member read | SELECT | user is in team_members |
 | `team_members` | own membership | SELECT, UPDATE, DELETE | `auth.uid() = user_id` |
@@ -127,3 +128,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260315164825_drop_valid_window_constraint.sql` | Drop `valid_window` check constraint — 3h minimum enforced in slot-matching logic, not schema |
 | `20260316000001_team_member_edit_availability.sql` | `is_teammate_of()` SECURITY DEFINER (covers leader↔member); "Teammates can edit each other's availability" RLS policy on availabilities |
 | `20260316000002_member_leave_team.sql` | Add `DELETE` policy on `team_members` for own rows — was missing, causing leave-team to silently fail |
+| `20260316000003_teammate_profile_read.sql` | Add SELECT policy on `profiles` for teammates — was missing, causing roster username join to return null |

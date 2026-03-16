@@ -11,7 +11,7 @@
 		{ href: '/availability', label: 'Availability' },
 		{ href: '/team', label: 'My Team' },
 		{ href: '/scrims', label: 'Scrims' },
-		{ href: '/fillers', label: 'Fillers' },
+		{ href: '/fillers', label: 'Fillers', experimental: true },
 		{ href: '/profile', label: 'Profile' }
 	];
 
@@ -62,9 +62,14 @@
 				<a
 					href={link.href}
 					onclick={() => (sidebarOpen = false)}
-					class="flex items-center px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center gap-2 px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 				>
 					{link.label}
+					{#if link.experimental}
+						<span class="text-[10px] font-medium px-1 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 leading-none">
+							Beta
+						</span>
+					{/if}
 				</a>
 			{/each}
 			{#if isAdmin}

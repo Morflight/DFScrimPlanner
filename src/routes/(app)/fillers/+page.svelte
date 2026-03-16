@@ -40,8 +40,22 @@
 
 <div class="px-4 py-6 md:p-8 max-w-3xl space-y-8">
 	<div>
-		<h1 class="text-2xl font-bold tracking-tight">Filler Players</h1>
+		<div class="flex items-center gap-3">
+			<h1 class="text-2xl font-bold tracking-tight">Filler Players</h1>
+			<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+				Experimental
+			</span>
+		</div>
 		<p class="text-sm text-muted-foreground mt-1">Solo players available to fill in for teams.</p>
+	</div>
+
+	<div class="flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+		<svg class="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+			<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 10.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm.75-3.5a.75.75 0 0 1-1.5 0V5a.75.75 0 0 1 1.5 0v3z"/>
+		</svg>
+		<p class="text-xs leading-relaxed">
+			This feature is still in development. Functionality may be incomplete or change.
+		</p>
 	</div>
 
 	<!-- Register/unregister as filler -->
