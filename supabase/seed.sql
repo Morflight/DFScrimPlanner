@@ -1,20 +1,17 @@
 -- ============================================================
--- Dev seed data
+-- Dev seed data — demo accounts
 --
 -- Admin:   admin@dev.local  / admin1234
--- Leaders: leader{1-9}@dev.local / test1234
--- Players: player{1-18}@dev.local / test1234
+-- Leaders: demo-<team>-lead@dev.local / test1234
+-- Players: demo-<team>-<role>@dev.local / test1234
 --
--- 9 teams × 3 players (1 leader + 2 members each)
--- All players have availability pre-filled (UTC 17:00–22:00), relative to seed date:
---   anchor = Monday of the week after seed date
---   Group A – Teams 1–3 (Phoenix/Wolves/Falcons): anchor Mon, Wed, Fri
---   Group B – Teams 4–6 (Ghosts/Thunder/Shadow):  anchor Tue, Thu, Sat
---   Group C – Teams 7–9 (Arctic/Storm/Hunters):   anchor Wed, Fri, Sun
+-- 6 demo teams × 3 players (1 leader + 2 members each)
+-- Varied timezones and availability windows per player
 --
--- Scrim matchable slots (6 teams required per scrim):
---   anchor+Wed 17:00 UTC → Groups A (Phoenix/Wolves/Falcons) + C (Arctic/Storm/Hunters) = 6 teams
---   anchor+Fri 17:00 UTC → Groups A + C = 6 teams
+-- Anchor = Monday of the week after seed date
+-- Guaranteed scrim-matchable overlap:
+--   anchor+Wed 19:00–22:00 UTC → Alpha + Bravo + Echo (3 teams, 3h)
+--   anchor+Fri 20:00–23:00 UTC → Alpha + Echo (2 teams, 3h)
 -- ============================================================
 
 -- ── Admin account ────────────────────────────────────────────
@@ -55,21 +52,25 @@ begin
   ) on conflict (provider_id, provider) do nothing;
 end $$;
 
--- ── Test players (9 leaders + 18 players) ────────────────────
+-- ── Demo players (6 leaders + 12 players) ───────────────────
+-- Team layout:
+--   1. Demo Alpha Wolves  (EU evening)
+--   2. Demo Bravo Hawks   (EU evening, shifted)
+--   3. Demo Charlie Foxes (NA East evening)
+--   4. Demo Delta Ravens  (NA West evening)
+--   5. Demo Echo Storm    (Mixed EU/NA crossover)
+--   6. Demo Foxtrot Vipers(Asia-Pacific daytime)
 do $$
 declare
   uids uuid[] := array[
-    -- Leaders 1–9
+    -- Leaders 1–6
     '00000000-0000-0000-1000-000000000001'::uuid,
     '00000000-0000-0000-1000-000000000002'::uuid,
     '00000000-0000-0000-1000-000000000003'::uuid,
     '00000000-0000-0000-1000-000000000004'::uuid,
     '00000000-0000-0000-1000-000000000005'::uuid,
     '00000000-0000-0000-1000-000000000006'::uuid,
-    '00000000-0000-0000-1000-000000000007'::uuid,
-    '00000000-0000-0000-1000-000000000008'::uuid,
-    '00000000-0000-0000-1000-000000000009'::uuid,
-    -- Players 1–18
+    -- Players 1–12
     '00000000-0000-0000-2000-000000000001'::uuid,
     '00000000-0000-0000-2000-000000000002'::uuid,
     '00000000-0000-0000-2000-000000000003'::uuid,
@@ -81,43 +82,60 @@ declare
     '00000000-0000-0000-2000-000000000009'::uuid,
     '00000000-0000-0000-2000-000000000010'::uuid,
     '00000000-0000-0000-2000-000000000011'::uuid,
-    '00000000-0000-0000-2000-000000000012'::uuid,
-    '00000000-0000-0000-2000-000000000013'::uuid,
-    '00000000-0000-0000-2000-000000000014'::uuid,
-    '00000000-0000-0000-2000-000000000015'::uuid,
-    '00000000-0000-0000-2000-000000000016'::uuid,
-    '00000000-0000-0000-2000-000000000017'::uuid,
-    '00000000-0000-0000-2000-000000000018'::uuid
+    '00000000-0000-0000-2000-000000000012'::uuid
   ];
   emails text[] := array[
-    'leader1@dev.local','leader2@dev.local','leader3@dev.local',
-    'leader4@dev.local','leader5@dev.local','leader6@dev.local',
-    'leader7@dev.local','leader8@dev.local','leader9@dev.local',
-    'player1@dev.local', 'player2@dev.local', 'player3@dev.local',
-    'player4@dev.local', 'player5@dev.local', 'player6@dev.local',
-    'player7@dev.local', 'player8@dev.local', 'player9@dev.local',
-    'player10@dev.local','player11@dev.local','player12@dev.local',
-    'player13@dev.local','player14@dev.local','player15@dev.local',
-    'player16@dev.local','player17@dev.local','player18@dev.local'
+    'demo-alpha-lead@dev.local',  'demo-bravo-lead@dev.local',
+    'demo-charlie-lead@dev.local','demo-delta-lead@dev.local',
+    'demo-echo-lead@dev.local',   'demo-foxtrot-lead@dev.local',
+    'demo-alpha-rifle@dev.local', 'demo-alpha-sniper@dev.local',
+    'demo-bravo-rifle@dev.local', 'demo-bravo-sniper@dev.local',
+    'demo-charlie-rifle@dev.local','demo-charlie-sniper@dev.local',
+    'demo-delta-rifle@dev.local', 'demo-delta-sniper@dev.local',
+    'demo-echo-rifle@dev.local',  'demo-echo-sniper@dev.local',
+    'demo-foxtrot-rifle@dev.local','demo-foxtrot-sniper@dev.local'
   ];
   usernames text[] := array[
-    'PhoenixLead','WolvesLead','FalconsLead',
-    'GhostsLead','ThunderLead','ShadowLead',
-    'ArcticLead','StormLead','HuntersLead',
-    'PhoenixAce','PhoenixGun',
-    'WolvesAce','WolvesGun',
-    'FalconsAce','FalconsGun',
-    'GhostsAce','GhostsGun',
-    'ThunderAce','ThunderGun',
-    'ShadowAce','ShadowGun',
-    'ArcticAce','ArcticGun',
-    'StormAce','StormGun',
-    'HuntersAce','HuntersGun'
+    'demo-AlphaLead',   'demo-BravoLead',
+    'demo-CharlieLead', 'demo-DeltaLead',
+    'demo-EchoLead',    'demo-FoxtrotLead',
+    'demo-AlphaRifle',  'demo-AlphaSniper',
+    'demo-BravoRifle',  'demo-BravoSniper',
+    'demo-CharlieRifle','demo-CharlieSniper',
+    'demo-DeltaRifle',  'demo-DeltaSniper',
+    'demo-EchoRifle',   'demo-EchoSniper',
+    'demo-FoxtrotRifle','demo-FoxtrotSniper'
+  ];
+  timezones text[] := array[
+    -- Alpha: Western Europe
+    'Europe/Paris',     'Europe/Paris',
+    -- Bravo: Central/Eastern Europe
+    'Europe/Warsaw',    'Europe/Berlin',
+    -- Charlie: NA East
+    'America/New_York', 'America/Toronto',
+    -- Delta: NA West
+    'America/Los_Angeles', 'America/Denver',
+    -- Echo: Mixed EU/NA
+    'Europe/London',    'America/New_York',
+    -- Foxtrot: Asia-Pacific
+    'Asia/Tokyo',       'Australia/Sydney',
+    -- Alpha players
+    'Europe/Berlin',    'Europe/London',
+    -- Bravo players
+    'Europe/Warsaw',    'Europe/Madrid',
+    -- Charlie players
+    'America/Toronto',  'America/Chicago',
+    -- Delta players
+    'America/Denver',   'America/Vancouver',
+    -- Echo players
+    'America/New_York', 'Europe/Berlin',
+    -- Foxtrot players
+    'Asia/Singapore',   'Australia/Sydney'
   ];
   roles text[] := array[
-    'leader','leader','leader','leader','leader','leader','leader','leader','leader',
-    'player','player','player','player','player','player','player','player','player',
-    'player','player','player','player','player','player','player','player','player'
+    'leader','leader','leader','leader','leader','leader',
+    'player','player','player','player','player','player',
+    'player','player','player','player','player','player'
   ];
   i int;
 begin
@@ -139,7 +157,11 @@ begin
       now(),
       '', '', '', '', '',
       '{"provider": "email", "providers": ["email"]}'::jsonb,
-      jsonb_build_object('username', usernames[i], 'role', roles[i]),
+      jsonb_build_object(
+        'username', usernames[i],
+        'role', roles[i],
+        'timezone', timezones[i]
+      ),
       false, false, false,
       now(), now()
     ) on conflict (id) do nothing;
@@ -157,143 +179,211 @@ end $$;
 
 -- ── Teams ─────────────────────────────────────────────────────
 insert into public.teams (id, name, leader_id) values
-  ('00000000-0000-0000-3000-000000000001', 'Phoenix Squad',  '00000000-0000-0000-1000-000000000001'),
-  ('00000000-0000-0000-3000-000000000002', 'Iron Wolves',    '00000000-0000-0000-1000-000000000002'),
-  ('00000000-0000-0000-3000-000000000003', 'Steel Falcons',  '00000000-0000-0000-1000-000000000003'),
-  ('00000000-0000-0000-3000-000000000004', 'Ghost Protocol', '00000000-0000-0000-1000-000000000004'),
-  ('00000000-0000-0000-3000-000000000005', 'Thunder Ravens', '00000000-0000-0000-1000-000000000005'),
-  ('00000000-0000-0000-3000-000000000006', 'Shadow Vipers',  '00000000-0000-0000-1000-000000000006'),
-  ('00000000-0000-0000-3000-000000000007', 'Arctic Fox',     '00000000-0000-0000-1000-000000000007'),
-  ('00000000-0000-0000-3000-000000000008', 'Delta Storm',    '00000000-0000-0000-1000-000000000008'),
-  ('00000000-0000-0000-3000-000000000009', 'Night Hunters',  '00000000-0000-0000-1000-000000000009')
+  ('00000000-0000-0000-3000-000000000001', 'Demo Alpha Wolves',   '00000000-0000-0000-1000-000000000001'),
+  ('00000000-0000-0000-3000-000000000002', 'Demo Bravo Hawks',    '00000000-0000-0000-1000-000000000002'),
+  ('00000000-0000-0000-3000-000000000003', 'Demo Charlie Foxes',  '00000000-0000-0000-1000-000000000003'),
+  ('00000000-0000-0000-3000-000000000004', 'Demo Delta Ravens',   '00000000-0000-0000-1000-000000000004'),
+  ('00000000-0000-0000-3000-000000000005', 'Demo Echo Storm',     '00000000-0000-0000-1000-000000000005'),
+  ('00000000-0000-0000-3000-000000000006', 'Demo Foxtrot Vipers', '00000000-0000-0000-1000-000000000006')
 on conflict (id) do nothing;
 
--- ── Team members (2 active members per team, leader excluded) ─
+-- ── Team members (2 active members per team) ──────────────────
 insert into public.team_members (team_id, user_id, invite_email, invite_token, status, activated_at) values
-  -- Team 1: Phoenix Squad
-  ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000001','player1@dev.local', 'tok-t1-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000002','player2@dev.local', 'tok-t1-p2','active',now()),
-  -- Team 2: Iron Wolves
-  ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000003','player3@dev.local', 'tok-t2-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000004','player4@dev.local', 'tok-t2-p2','active',now()),
-  -- Team 3: Steel Falcons
-  ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000005','player5@dev.local', 'tok-t3-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000006','player6@dev.local', 'tok-t3-p2','active',now()),
-  -- Team 4: Ghost Protocol
-  ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000007','player7@dev.local', 'tok-t4-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000008','player8@dev.local', 'tok-t4-p2','active',now()),
-  -- Team 5: Thunder Ravens
-  ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000009','player9@dev.local', 'tok-t5-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000010','player10@dev.local','tok-t5-p2','active',now()),
-  -- Team 6: Shadow Vipers
-  ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000011','player11@dev.local','tok-t6-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000012','player12@dev.local','tok-t6-p2','active',now()),
-  -- Team 7: Arctic Fox
-  ('00000000-0000-0000-3000-000000000007','00000000-0000-0000-2000-000000000013','player13@dev.local','tok-t7-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000007','00000000-0000-0000-2000-000000000014','player14@dev.local','tok-t7-p2','active',now()),
-  -- Team 8: Delta Storm
-  ('00000000-0000-0000-3000-000000000008','00000000-0000-0000-2000-000000000015','player15@dev.local','tok-t8-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000008','00000000-0000-0000-2000-000000000016','player16@dev.local','tok-t8-p2','active',now()),
-  -- Team 9: Night Hunters
-  ('00000000-0000-0000-3000-000000000009','00000000-0000-0000-2000-000000000017','player17@dev.local','tok-t9-p1','active',now()),
-  ('00000000-0000-0000-3000-000000000009','00000000-0000-0000-2000-000000000018','player18@dev.local','tok-t9-p2','active',now())
+  -- Alpha Wolves
+  ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000001','demo-alpha-rifle@dev.local', 'tok-a-r','active',now()),
+  ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000002','demo-alpha-sniper@dev.local','tok-a-s','active',now()),
+  -- Bravo Hawks
+  ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000003','demo-bravo-rifle@dev.local', 'tok-b-r','active',now()),
+  ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000004','demo-bravo-sniper@dev.local','tok-b-s','active',now()),
+  -- Charlie Foxes
+  ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000005','demo-charlie-rifle@dev.local', 'tok-c-r','active',now()),
+  ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000006','demo-charlie-sniper@dev.local','tok-c-s','active',now()),
+  -- Delta Ravens
+  ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000007','demo-delta-rifle@dev.local', 'tok-d-r','active',now()),
+  ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000008','demo-delta-sniper@dev.local','tok-d-s','active',now()),
+  -- Echo Storm
+  ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000009','demo-echo-rifle@dev.local', 'tok-e-r','active',now()),
+  ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000010','demo-echo-sniper@dev.local','tok-e-s','active',now()),
+  -- Foxtrot Vipers
+  ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000011','demo-foxtrot-rifle@dev.local', 'tok-f-r','active',now()),
+  ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000012','demo-foxtrot-sniper@dev.local','tok-f-s','active',now())
 on conflict do nothing;
 
 -- ── Availabilities ────────────────────────────────────────────
--- Each window is 17:00–22:00 UTC (5h, enough for a 3h scrim with buffer)
--- Dates are relative to CURRENT_DATE so data is always visible when seeded:
---   anchor = Monday of next week from seed date
---   Group A (Teams 1-3): anchor+0 (Mon), anchor+2 (Wed), anchor+4 (Fri)
---   Group B (Teams 4-6): anchor+1 (Tue), anchor+3 (Thu), anchor+5 (Sat)
---   Group C (Teams 7-9): anchor+2 (Wed), anchor+4 (Fri), anchor+6 (Sun)
--- Scrim-matchable slots: anchor+2 (Wed 17:00 UTC) → Groups A+C; anchor+4 (Fri) → Groups A+C
+-- Anchor = Monday of next week from seed date.
+-- Each player has slightly different windows (realistic: not everyone
+-- is free at the exact same time).
+--
+-- Schedule overview (all times UTC):
+--
+-- ALPHA WOLVES (EU evening):
+--   Lead:   Mon 17:00–22:00  Wed 16:00–22:00  Fri 18:00–23:00
+--   Rifle:  Mon 17:30–21:30  Wed 16:30–22:00  Fri 18:00–22:30
+--   Sniper: Mon 17:00–21:00  Wed 16:00–21:30  Fri 18:30–23:00
+--
+-- BRAVO HAWKS (EU evening, shifted):
+--   Lead:   Tue 15:30–20:30  Wed 17:00–22:00  Thu 16:00–21:00
+--   Rifle:  Tue 16:00–20:30  Wed 17:30–22:00  Thu 16:00–20:30
+--   Sniper: Tue 15:30–20:00  Wed 17:00–21:30  Thu 16:30–21:00
+--
+-- CHARLIE FOXES (NA East evening):
+--   Lead:   Mon 23:00–04:00+1  Wed 22:30–03:30+1  Sat 23:00–04:00+1
+--   Rifle:  Mon 23:30–04:00+1  Wed 23:00–03:30+1  Sat 23:00–03:30+1
+--   Sniper: Mon 23:00–03:30+1  Wed 22:30–03:00+1  Sat 23:30–04:00+1
+--
+-- DELTA RAVENS (NA West evening):
+--   Lead:   Tue 02:00–07:00  Thu 01:30–06:30  Sat 02:00–07:00
+--   Rifle:  Tue 02:30–07:00  Thu 02:00–06:30  Sat 02:00–06:30
+--   Sniper: Tue 02:00–06:30  Thu 01:30–06:00  Sat 02:30–07:00
+--
+-- ECHO STORM (Mixed EU/NA crossover):
+--   Lead:   Mon 20:00–01:00+1  Wed 19:00–00:00+1  Fri 20:00–01:00+1
+--   Rifle:  Mon 20:30–01:00+1  Wed 19:30–00:00+1  Fri 20:00–00:30+1
+--   Sniper: Mon 20:00–00:30+1  Wed 19:00–23:30     Fri 20:30–01:00+1
+--
+-- FOXTROT VIPERS (Asia-Pacific daytime):
+--   Lead:   Tue 09:00–14:00  Thu 10:00–15:00  Sun 08:00–13:00
+--   Rifle:  Tue 09:30–14:00  Thu 10:00–14:30  Sun 08:30–13:00
+--   Sniper: Tue 09:00–13:30  Thu 10:30–15:00  Sun 08:00–12:30
+--
+-- SCRIM-MATCHABLE OVERLAPS:
+--   Wed 19:00–21:30 UTC → Alpha (16:00–21:30) ∩ Bravo (17:00–21:30) ∩ Echo (19:00–23:30)
+--     → All 3 teams overlap for ≥3h window: 19:00–21:30 = 2h30 minimum
+--     → Actually: Alpha all 3 free 17:30–21:00, Bravo all 3 free 17:30–20:00,
+--       Echo all 3 free 20:30–23:30... Let me recalc.
+--     → Safe window: Wed 19:30–22:00 → Alpha ✓ Bravo ✓ (just) Echo ✓
+--   Fri 20:00–22:30 UTC → Alpha (18:00–22:30) ∩ Echo (20:00–00:30)
+--     → 2 teams overlap 20:00–22:30 = 2h30; with buffer from individual players ≥3h
 
 do $$
 declare
   anchor date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;
-
-  group_a_users uuid[] := array[
-    '00000000-0000-0000-1000-000000000001'::uuid, -- L1
-    '00000000-0000-0000-2000-000000000001'::uuid, -- P1
-    '00000000-0000-0000-2000-000000000002'::uuid, -- P2
-    '00000000-0000-0000-1000-000000000002'::uuid, -- L2
-    '00000000-0000-0000-2000-000000000003'::uuid, -- P3
-    '00000000-0000-0000-2000-000000000004'::uuid, -- P4
-    '00000000-0000-0000-1000-000000000003'::uuid, -- L3
-    '00000000-0000-0000-2000-000000000005'::uuid, -- P5
-    '00000000-0000-0000-2000-000000000006'::uuid  -- P6
-  ];
-  group_a_days timestamptz[];
-
-  group_b_users uuid[] := array[
-    '00000000-0000-0000-1000-000000000004'::uuid, -- L4
-    '00000000-0000-0000-2000-000000000007'::uuid, -- P7
-    '00000000-0000-0000-2000-000000000008'::uuid, -- P8
-    '00000000-0000-0000-1000-000000000005'::uuid, -- L5
-    '00000000-0000-0000-2000-000000000009'::uuid, -- P9
-    '00000000-0000-0000-2000-000000000010'::uuid, -- P10
-    '00000000-0000-0000-1000-000000000006'::uuid, -- L6
-    '00000000-0000-0000-2000-000000000011'::uuid, -- P11
-    '00000000-0000-0000-2000-000000000012'::uuid  -- P12
-  ];
-  group_b_days timestamptz[];
-
-  group_c_users uuid[] := array[
-    '00000000-0000-0000-1000-000000000007'::uuid, -- L7
-    '00000000-0000-0000-2000-000000000013'::uuid, -- P13
-    '00000000-0000-0000-2000-000000000014'::uuid, -- P14
-    '00000000-0000-0000-1000-000000000008'::uuid, -- L8
-    '00000000-0000-0000-2000-000000000015'::uuid, -- P15
-    '00000000-0000-0000-2000-000000000016'::uuid, -- P16
-    '00000000-0000-0000-1000-000000000009'::uuid, -- L9
-    '00000000-0000-0000-2000-000000000017'::uuid, -- P17
-    '00000000-0000-0000-2000-000000000018'::uuid  -- P18
-  ];
-  group_c_days timestamptz[];
-
-  uid  uuid;
-  day  timestamptz;
+  -- convenience: anchor + N days at HH:MM UTC
+  -- We'll build timestamps inline below
 begin
-  group_a_days := array[
-    (anchor + interval '0 days')::timestamptz + interval '17 hours', -- Mon
-    (anchor + interval '2 days')::timestamptz + interval '17 hours', -- Wed
-    (anchor + interval '4 days')::timestamptz + interval '17 hours'  -- Fri
-  ];
-  group_b_days := array[
-    (anchor + interval '1 day')::timestamptz  + interval '17 hours', -- Tue
-    (anchor + interval '3 days')::timestamptz + interval '17 hours', -- Thu
-    (anchor + interval '5 days')::timestamptz + interval '17 hours'  -- Sat
-  ];
-  group_c_days := array[
-    (anchor + interval '2 days')::timestamptz + interval '17 hours', -- Wed
-    (anchor + interval '4 days')::timestamptz + interval '17 hours', -- Fri
-    (anchor + interval '6 days')::timestamptz + interval '17 hours'  -- Sun
-  ];
+  -- ── ALPHA WOLVES ──────────────────────────────────────────
+  -- Leader (L1): Mon 17:00–22:00, Wed 16:00–22:00, Fri 18:00–23:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000001', anchor + interval '0 days 17 hours',  anchor + interval '0 days 22 hours'),
+    ('00000000-0000-0000-1000-000000000001', anchor + interval '2 days 16 hours',  anchor + interval '2 days 22 hours'),
+    ('00000000-0000-0000-1000-000000000001', anchor + interval '4 days 18 hours',  anchor + interval '4 days 23 hours');
+  -- Rifle (P1): Mon 17:30–21:30, Wed 16:30–22:00, Fri 18:00–22:30
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000001', anchor + interval '0 days 17 hours 30 minutes', anchor + interval '0 days 21 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000001', anchor + interval '2 days 16 hours 30 minutes', anchor + interval '2 days 22 hours'),
+    ('00000000-0000-0000-2000-000000000001', anchor + interval '4 days 18 hours',             anchor + interval '4 days 22 hours 30 minutes');
+  -- Sniper (P2): Mon 17:00–21:00, Wed 16:00–21:30, Fri 18:30–23:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000002', anchor + interval '0 days 17 hours',             anchor + interval '0 days 21 hours'),
+    ('00000000-0000-0000-2000-000000000002', anchor + interval '2 days 16 hours',             anchor + interval '2 days 21 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000002', anchor + interval '4 days 18 hours 30 minutes',  anchor + interval '4 days 23 hours');
 
-  -- Group A
-  foreach uid in array group_a_users loop
-    foreach day in array group_a_days loop
-      insert into public.availabilities (user_id, starts_at, ends_at)
-      values (uid, day, day + interval '5 hours')
-      on conflict do nothing;
-    end loop;
-  end loop;
+  -- ── BRAVO HAWKS ───────────────────────────────────────────
+  -- Leader (L2): Tue 15:30–20:30, Wed 17:00–22:00, Thu 16:00–21:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000002', anchor + interval '1 day  15 hours 30 minutes', anchor + interval '1 day  20 hours 30 minutes'),
+    ('00000000-0000-0000-1000-000000000002', anchor + interval '2 days 17 hours',            anchor + interval '2 days 22 hours'),
+    ('00000000-0000-0000-1000-000000000002', anchor + interval '3 days 16 hours',            anchor + interval '3 days 21 hours');
+  -- Rifle (P3): Tue 16:00–20:30, Wed 17:30–22:00, Thu 16:00–20:30
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000003', anchor + interval '1 day  16 hours',            anchor + interval '1 day  20 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000003', anchor + interval '2 days 17 hours 30 minutes', anchor + interval '2 days 22 hours'),
+    ('00000000-0000-0000-2000-000000000003', anchor + interval '3 days 16 hours',            anchor + interval '3 days 20 hours 30 minutes');
+  -- Sniper (P4): Tue 15:30–20:00, Wed 17:00–21:30, Thu 16:30–21:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000004', anchor + interval '1 day  15 hours 30 minutes', anchor + interval '1 day  20 hours'),
+    ('00000000-0000-0000-2000-000000000004', anchor + interval '2 days 17 hours',            anchor + interval '2 days 21 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000004', anchor + interval '3 days 16 hours 30 minutes', anchor + interval '3 days 21 hours');
 
-  -- Group B
-  foreach uid in array group_b_users loop
-    foreach day in array group_b_days loop
-      insert into public.availabilities (user_id, starts_at, ends_at)
-      values (uid, day, day + interval '5 hours')
-      on conflict do nothing;
-    end loop;
-  end loop;
+  -- ── CHARLIE FOXES ─────────────────────────────────────────
+  -- Leader (L3): Mon 23:00–04:00+1, Wed 22:30–03:30+1, Sat 23:00–04:00+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000003', anchor + interval '0 days 23 hours', anchor + interval '1 day  4 hours'),
+    ('00000000-0000-0000-1000-000000000003', anchor + interval '2 days 22 hours 30 minutes', anchor + interval '3 days 3 hours 30 minutes'),
+    ('00000000-0000-0000-1000-000000000003', anchor + interval '5 days 23 hours', anchor + interval '6 days 4 hours');
+  -- Rifle (P5): Mon 23:30–04:00+1, Wed 23:00–03:30+1, Sat 23:00–03:30+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000005', anchor + interval '0 days 23 hours 30 minutes', anchor + interval '1 day  4 hours'),
+    ('00000000-0000-0000-2000-000000000005', anchor + interval '2 days 23 hours',            anchor + interval '3 days 3 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000005', anchor + interval '5 days 23 hours',            anchor + interval '6 days 3 hours 30 minutes');
+  -- Sniper (P6): Mon 23:00–03:30+1, Wed 22:30–03:00+1, Sat 23:30–04:00+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000006', anchor + interval '0 days 23 hours',            anchor + interval '1 day  3 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000006', anchor + interval '2 days 22 hours 30 minutes', anchor + interval '3 days 3 hours'),
+    ('00000000-0000-0000-2000-000000000006', anchor + interval '5 days 23 hours 30 minutes', anchor + interval '6 days 4 hours');
 
-  -- Group C
-  foreach uid in array group_c_users loop
-    foreach day in array group_c_days loop
-      insert into public.availabilities (user_id, starts_at, ends_at)
-      values (uid, day, day + interval '5 hours')
-      on conflict do nothing;
-    end loop;
-  end loop;
+  -- ── DELTA RAVENS ──────────────────────────────────────────
+  -- Leader (L4): Tue 02:00–07:00, Thu 01:30–06:30, Sat 02:00–07:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000004', anchor + interval '1 day  2 hours',             anchor + interval '1 day  7 hours'),
+    ('00000000-0000-0000-1000-000000000004', anchor + interval '3 days 1 hour 30 minutes',   anchor + interval '3 days 6 hours 30 minutes'),
+    ('00000000-0000-0000-1000-000000000004', anchor + interval '5 days 2 hours',             anchor + interval '5 days 7 hours');
+  -- Rifle (P7): Tue 02:30–07:00, Thu 02:00–06:30, Sat 02:00–06:30
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000007', anchor + interval '1 day  2 hours 30 minutes',  anchor + interval '1 day  7 hours'),
+    ('00000000-0000-0000-2000-000000000007', anchor + interval '3 days 2 hours',             anchor + interval '3 days 6 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000007', anchor + interval '5 days 2 hours',             anchor + interval '5 days 6 hours 30 minutes');
+  -- Sniper (P8): Tue 02:00–06:30, Thu 01:30–06:00, Sat 02:30–07:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000008', anchor + interval '1 day  2 hours',             anchor + interval '1 day  6 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000008', anchor + interval '3 days 1 hour 30 minutes',   anchor + interval '3 days 6 hours'),
+    ('00000000-0000-0000-2000-000000000008', anchor + interval '5 days 2 hours 30 minutes',  anchor + interval '5 days 7 hours');
+
+  -- ── ECHO STORM ────────────────────────────────────────────
+  -- Leader (L5): Mon 20:00–01:00+1, Wed 19:00–00:00+1, Fri 20:00–01:00+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000005', anchor + interval '0 days 20 hours', anchor + interval '1 day  1 hour'),
+    ('00000000-0000-0000-1000-000000000005', anchor + interval '2 days 19 hours', anchor + interval '3 days 0 hours'),
+    ('00000000-0000-0000-1000-000000000005', anchor + interval '4 days 20 hours', anchor + interval '5 days 1 hour');
+  -- Rifle (P9): Mon 20:30–01:00+1, Wed 19:30–00:00+1, Fri 20:00–00:30+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000009', anchor + interval '0 days 20 hours 30 minutes', anchor + interval '1 day  1 hour'),
+    ('00000000-0000-0000-2000-000000000009', anchor + interval '2 days 19 hours 30 minutes', anchor + interval '3 days 0 hours'),
+    ('00000000-0000-0000-2000-000000000009', anchor + interval '4 days 20 hours',            anchor + interval '5 days 0 hours 30 minutes');
+  -- Sniper (P10): Mon 20:00–00:30+1, Wed 19:00–23:30, Fri 20:30–01:00+1
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000010', anchor + interval '0 days 20 hours',            anchor + interval '1 day  0 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000010', anchor + interval '2 days 19 hours',            anchor + interval '2 days 23 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000010', anchor + interval '4 days 20 hours 30 minutes', anchor + interval '5 days 1 hour');
+
+  -- ── FOXTROT VIPERS ────────────────────────────────────────
+  -- Leader (L6): Tue 09:00–14:00, Thu 10:00–15:00, Sun 08:00–13:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-1000-000000000006', anchor + interval '1 day  9 hours',  anchor + interval '1 day  14 hours'),
+    ('00000000-0000-0000-1000-000000000006', anchor + interval '3 days 10 hours', anchor + interval '3 days 15 hours'),
+    ('00000000-0000-0000-1000-000000000006', anchor + interval '6 days 8 hours',  anchor + interval '6 days 13 hours');
+  -- Rifle (P11): Tue 09:30–14:00, Thu 10:00–14:30, Sun 08:30–13:00
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000011', anchor + interval '1 day  9 hours 30 minutes', anchor + interval '1 day  14 hours'),
+    ('00000000-0000-0000-2000-000000000011', anchor + interval '3 days 10 hours',           anchor + interval '3 days 14 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000011', anchor + interval '6 days 8 hours 30 minutes', anchor + interval '6 days 13 hours');
+  -- Sniper (P12): Tue 09:00–13:30, Thu 10:30–15:00, Sun 08:00–12:30
+  insert into public.availabilities (user_id, starts_at, ends_at) values
+    ('00000000-0000-0000-2000-000000000012', anchor + interval '1 day  9 hours',             anchor + interval '1 day  13 hours 30 minutes'),
+    ('00000000-0000-0000-2000-000000000012', anchor + interval '3 days 10 hours 30 minutes', anchor + interval '3 days 15 hours'),
+    ('00000000-0000-0000-2000-000000000012', anchor + interval '6 days 8 hours',             anchor + interval '6 days 12 hours 30 minutes');
 end $$;
+
+-- ============================================================
+-- OVERLAP VERIFICATION (for reference, not executed)
+--
+-- Note: time-first scrim matching checks team_members windows
+-- (not leaders). A team is "available" if ANY one member's
+-- window fully covers the 3h slot (.some(), not .every()).
+--
+-- Wednesday — per-player windows:
+--   Alpha Rifle:  16:30–22:00  |  Alpha Sniper:  16:00–21:30
+--   Bravo Rifle:  17:30–22:00  |  Bravo Sniper:  17:00–21:30
+--   Echo  Rifle:  19:30–00:00  |  Echo  Sniper:  19:00–23:30
+--
+-- Wed 18:00 UTC (→ 21:00): Alpha ✓ (Rifle covers)  Bravo ✓ (Rifle covers)
+-- Wed 19:00 UTC (→ 22:00): Alpha ✓ (Rifle 22:00≥22:00)  Bravo ✓ (Rifle)  Echo ✓ (Sniper)
+--   ➜ Best demo slot: Wed 19:00 UTC → 3 teams available
+--
+-- Friday — per-player windows:
+--   Alpha Rifle:  18:00–22:30  |  Alpha Sniper:  18:30–23:00
+--   Echo  Rifle:  20:00–00:30  |  Echo  Sniper:  20:30–01:00
+--
+-- Fri 20:00 UTC (→ 23:00): Alpha ✓ (Sniper 23:00≥23:00)  Echo ✓ (Rifle)
+--   ➜ Fri 20:00 UTC → 2 teams available
+-- ============================================================
