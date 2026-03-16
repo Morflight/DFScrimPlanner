@@ -4,8 +4,12 @@ import { findTeamsForSlot } from '$lib/utils/slot-matching';
 import { slotsFromWindow } from '$lib/utils/timezone';
 import { supabaseAdmin } from '$lib/server/supabase';
 
-export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession } }) => {
+export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
+
+	// Week offset from URL (0 = current week, 1 = next week, -1 = previous week)
+	let weekOffset = parseInt(url.searchParams.get('week') ?? '0', 10) || 0;
+	const explicitWeek = url.searchParams.has('week');
 
 	// Viewer timezone for grid
 	const { data: profile } = await supabase
@@ -15,7 +19,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.single();
 	const viewerTz = profile?.timezone ?? 'UTC';
 
-	// Grid days: 7 days from today in viewer's timezone
 	const now = new Date();
 	const dateFmt = new Intl.DateTimeFormat('en-US', {
 		timeZone: viewerTz,
@@ -27,7 +30,30 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 	const ty = todayParts.find((p) => p.type === 'year')?.value ?? '';
 	const tm = todayParts.find((p) => p.type === 'month')?.value ?? '';
 	const td = todayParts.find((p) => p.type === 'day')?.value ?? '';
-	const start = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
+	const todayStart = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
+
+	// Auto-detect: if no explicit week param, jump to the first week with availability
+	if (!explicitWeek) {
+		const { data: nextAvail } = await supabaseAdmin
+			.from('availabilities')
+			.select('starts_at')
+			.gte('ends_at', todayStart.toISOString())
+			.order('starts_at', { ascending: true })
+			.limit(1)
+			.maybeSingle();
+
+		if (nextAvail) {
+			const earliestMs = new Date(nextAvail.starts_at).getTime();
+			const diffDays = Math.floor((earliestMs - todayStart.getTime()) / (24 * 3_600_000));
+			if (diffDays >= 7) {
+				weekOffset = Math.floor(diffDays / 7);
+			}
+		}
+	}
+
+	// Grid days: 7 days from today + week offset, in viewer's timezone
+	const start = new Date(todayStart);
+	start.setUTCDate(todayStart.getUTCDate() + weekOffset * 7);
 
 	const validDates = new Set<string>();
 	const gridDays = Array.from({ length: 7 }, (_, i) => {
@@ -162,7 +188,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		}
 	}
 
-	return { teamSlotData, myTeamMembers, gridDays, viewerTz };
+	return { teamSlotData, myTeamMembers, gridDays, viewerTz, weekOffset };
 };
 
 export const actions: Actions = {

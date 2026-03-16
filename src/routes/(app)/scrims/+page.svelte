@@ -1,9 +1,23 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import type { ActionData, PageData } from './$types';
 	import TeamScrimCalendar from '$lib/components/TeamScrimCalendar.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
+
+	function navigateWeek(delta: number) {
+		const next = (data.weekOffset ?? 0) + delta;
+		const params = new URLSearchParams();
+		if (next !== 0) params.set('week', String(next));
+		goto(`?${params.toString()}`, { invalidateAll: true });
+	}
+
+	const weekLabel = $derived.by(() => {
+		const days = data.gridDays;
+		if (!days || days.length === 0) return '';
+		return `${days[0].sub} – ${days[days.length - 1].sub}`;
+	});
 
 	const tz = $derived(data.profile?.timezone ?? 'UTC');
 	let tab = $state<'time-first' | 'teams-first'>('time-first');
@@ -133,6 +147,31 @@
 				{t === 'time-first' ? 'Pick a time' : 'Pick teams'}
 			</button>
 		{/each}
+	</div>
+
+	<!-- Week navigation -->
+	<div class="flex items-center gap-3">
+		<button
+			onclick={() => navigateWeek(-1)}
+			class="px-2 py-1 rounded border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+		>
+			&larr; Prev
+		</button>
+		<span class="text-sm font-medium min-w-[10rem] text-center">{weekLabel}</span>
+		<button
+			onclick={() => navigateWeek(1)}
+			class="px-2 py-1 rounded border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+		>
+			Next &rarr;
+		</button>
+		{#if (data.weekOffset ?? 0) !== 0}
+			<button
+				onclick={() => navigateWeek(-(data.weekOffset ?? 0))}
+				class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+			>
+				Today
+			</button>
+		{/if}
 	</div>
 
 	{#if tab === 'time-first'}
