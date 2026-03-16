@@ -4,7 +4,7 @@
 
 | Method | Path | Auth Required | Description |
 |--------|------|---------------|-------------|
-| GET | `/auth/callback` | — | Exchange Supabase token for session; links team_members row; routes: `type=invite` → `/register`, `type=recovery` → `/reset-password`, `next` param overrides |
+| GET | `/auth/callback` | — | Exchange PKCE code for session via `exchangeCodeForSession(code)`; links team_members `user_id` (keeps `status=invited`); routes to `/register` if unregistered, honors `next` param, else `/dashboard` |
 | POST | `/forgot-password` | no | Send password reset email via `supabase.auth.resetPasswordForEmail` |
 | POST | `/reset-password` | yes (recovery session) | Set new password via `supabase.auth.updateUser`; validates match |
 | POST | `/register` | yes (invite session) | Complete profile (username, timezone, password) for newly invited users |
