@@ -36,6 +36,19 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 			.eq('team_id', team.id);
 		members = (memberRows ?? []).filter((m: any) => m.status === 'active');
 		pendingInvites = (memberRows ?? []).filter((m: any) => m.status === 'invited');
+
+		// Prepend leader as a synthetic roster entry (leaders are in teams.leader_id, not team_members)
+		const { data: leaderProfile } = await supabaseAdmin
+			.from('profiles')
+			.select('id, username, timezone')
+			.eq('id', team.leader_id)
+			.single();
+		if (leaderProfile) {
+			members = [
+				{ id: null, user_id: team.leader_id, invite_email: null, status: 'active', profiles: leaderProfile, isLeader: true },
+				...members
+			];
+		}
 	}
 
 	// Fetch viewer's timezone

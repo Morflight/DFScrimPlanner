@@ -91,11 +91,16 @@
 					{#each data.members as member}
 						<div class="border border-border rounded-lg px-4 py-3 flex items-center justify-between">
 							<div>
-								<p class="text-sm font-medium">{(member.profiles as any)?.username}</p>
+								<div class="flex items-center gap-2">
+									<p class="text-sm font-medium">{(member.profiles as any)?.username}</p>
+									{#if (member as any).isLeader}
+										<span class="text-xs text-amber-600 dark:text-amber-400 font-medium">Leader</span>
+									{/if}
+								</div>
 								<p class="text-xs text-muted-foreground">{(member.profiles as any)?.timezone ?? ''}</p>
 							</div>
 							<div class="flex items-center gap-3">
-								{#if member.user_id && member.user_id !== data.profile?.id}
+								{#if member.user_id && member.user_id !== data.profile?.id && !(member as any).isLeader}
 									<a
 										href="/availability/{member.user_id}"
 										class="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -103,7 +108,7 @@
 										Edit availability
 									</a>
 								{/if}
-								{#if data.isLeader && member.user_id !== data.team.leader_id}
+								{#if data.isLeader && !(member as any).isLeader}
 									<form
 										method="POST"
 										action="?/remove-member"

@@ -3,4 +3,4 @@
 -- queries returned null for all teammates, leaving the roster blank.
 create policy "Teammates can view each other's profiles"
   on public.profiles for select
-  using (public.shares_team_with(id));
+  using (public.is_teammate_of(id));
