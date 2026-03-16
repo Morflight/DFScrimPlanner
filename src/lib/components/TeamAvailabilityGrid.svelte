@@ -84,7 +84,7 @@
 </div>
 
 <!-- Grid -->
-<div class="overflow-auto rounded-md border border-border p-1">
+<div class="overflow-x-auto rounded-md border border-border p-1">
 	<table
 		class="border-collapse text-xs w-full"
 		style="table-layout: fixed; min-width: 52rem; user-select: none;"
