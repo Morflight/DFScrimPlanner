@@ -53,7 +53,7 @@ export const actions: Actions = {
 
 		// Invite via Supabase Auth — sends a password-setup email
 		const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-			redirectTo: `${url.origin}/auth/callback`,
+			redirectTo: `${process.env.PUBLIC_SITE_URL ?? 'https://dfscrimplanner.local.com'}/auth/callback`,
 			data: { role }
 		});
 		if (error) return fail(400, { createError: error.message });

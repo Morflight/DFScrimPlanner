@@ -1,46 +1,40 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { PageData } from './$types';
 
-	let { data }: { data: PageData } = $props();
-
-	onMount(async () => {
-		// ── 1. Read tokens from URL fragment IMMEDIATELY ─────────────────
+	onMount(() => {
+		// Read tokens from URL fragment IMMEDIATELY — before any async work.
 		const hash = window.location.hash;
 		const hp = hash ? new URLSearchParams(hash.substring(1)) : new URLSearchParams();
 		const accessToken = hp.get('access_token');
 		const refreshToken = hp.get('refresh_token');
 		const type = hp.get('type');
-
-		// Query params (e.g. ?next=/reset-password from forgot-password flow)
 		const next = new URL(window.location.href).searchParams.get('next');
 
-		// ── 2. Set new session (overwrites any existing session in cookies) ──
-		if (accessToken && refreshToken) {
-			const { error } = await data.supabase.auth.setSession({
-				access_token: accessToken,
-				refresh_token: refreshToken
-			});
-			if (error) {
-				window.location.href = '/login';
-				return;
-			}
-		} else {
-			// No tokens — nothing to exchange
+		if (!accessToken || !refreshToken) {
 			window.location.href = '/login';
 			return;
 		}
 
-		// ── 3. Hard redirect — full page reload picks up new cookies ─────
-		if (next) {
-			window.location.href = next;
-		} else if (type === 'invite' || type === 'signup') {
-			window.location.href = '/register';
-		} else if (type === 'recovery') {
-			window.location.href = '/reset-password';
-		} else {
-			window.location.href = '/dashboard';
+		// POST tokens to server endpoint — only the server can set httpOnly cookies.
+		const form = document.createElement('form');
+		form.method = 'POST';
+		form.action = '/auth/callback';
+
+		for (const [k, v] of Object.entries({
+			access_token: accessToken,
+			refresh_token: refreshToken,
+			type: type ?? '',
+			next: next ?? ''
+		})) {
+			const input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = k;
+			input.value = v;
+			form.appendChild(input);
 		}
+
+		document.body.appendChild(form);
+		form.submit();
 	});
 </script>
 

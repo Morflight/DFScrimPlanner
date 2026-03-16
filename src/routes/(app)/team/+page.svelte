@@ -100,7 +100,7 @@
 								<p class="text-xs text-muted-foreground">{(member.profiles as any)?.timezone ?? ''}</p>
 							</div>
 							<div class="flex items-center gap-3">
-								{#if member.user_id && member.user_id !== data.profile?.id && !(member as any).isLeader}
+								{#if member.user_id && member.user_id !== data.profile?.id}
 									<a
 										href="/availability/{member.user_id}"
 										class="text-xs text-muted-foreground hover:text-foreground transition-colors"
