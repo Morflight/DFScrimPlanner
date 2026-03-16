@@ -223,7 +223,8 @@ export const actions: Actions = {
 		}
 
 		// New user — create the team_members row first, then send invite email
-		const { error: memberError } = await supabase.from('team_members').insert({
+		// Use supabaseAdmin: RLS only permits the leader to insert, but members can now invite too
+		const { error: memberError } = await supabaseAdmin.from('team_members').insert({
 			team_id: team.id,
 			invite_email: email,
 			invite_token: crypto.randomUUID(),
@@ -237,7 +238,7 @@ export const actions: Actions = {
 		});
 		if (inviteError) {
 			// Clean up the team_members row if invite failed
-			await supabase.from('team_members').delete().eq('team_id', team.id).eq('invite_email', email);
+			await supabaseAdmin.from('team_members').delete().eq('team_id', team.id).eq('invite_email', email);
 			return fail(500, { inviteError: inviteError.message });
 		}
 
