@@ -69,7 +69,8 @@ Each row is a continuous available window. Scrims are 3h — a window must span 
 | Table | Policy Name | Command | Using / Check |
 |-------|-------------|---------|---------------|
 | `profiles` | own profile | SELECT, UPDATE | `auth.uid() = id` |
-| `profiles` | teammate read | SELECT | `shares_team_with(id)` |
+| `profiles` | authenticated read | SELECT | any authenticated user |
+| `profiles` | teammate read | SELECT | `is_teammate_of(id)` |
 | `teams` | own team (leader) | ALL | `auth.uid() = leader_id` |
 | `teams` | member read | SELECT | user is in team_members |
 | `team_members` | own membership | SELECT, UPDATE, DELETE | `auth.uid() = user_id` |
@@ -134,3 +135,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260317000002_week_starts_on.sql` | Add `week_starts_on` column to profiles; set `'sunday'` for `America/*` timezones |
 | `20260317000003_25_teams_demo_data.sql` | Replace 10-team demo data with 25 teams (EU/NA/APAC/Crossover), 112 users, 12 fillers, 12 scrims; procedural availability generation |
 | `20260317000004_fix_leader_visibility.sql` | Fix `is_team_member_of()` and `participates_in_scrim()` to also check `teams.leader_id` — leaders weren't in `team_members`, so they couldn't see scrims/scrim_teams for their own team |
+| `20260317000005_profiles_authenticated_read.sql` | Add SELECT policy on `profiles` for all authenticated users — profile data is not sensitive and was already exposed via supabaseAdmin; fixes `profiles` join returning null in PostgREST embedded-resource context |
