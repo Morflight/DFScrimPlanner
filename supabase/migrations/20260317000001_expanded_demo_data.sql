@@ -1,75 +1,54 @@
 -- ============================================================
--- Dev seed data — expanded demo accounts
+-- Expanded demo data: 10 teams, 42 players, 8 scrims
 --
--- Admin:   admin@dev.local  / admin1234
--- Leaders: demo-<team>-lead@dev.local / test1234
--- Players: demo-<team>-<role>@dev.local / test1234
--- Fillers: demo-filler-<n>@dev.local / test1234
---
--- 10 teams × 4 players (1 leader + 3 members each)
--- 2 filler players
--- 5 availability windows per player
--- 8 scrims (2 past confirmed, 3 upcoming confirmed, 1 proposed, 1 proposed, 1 cancelled)
---
--- Anchor = Monday of the week after seed date
--- Past anchor = Monday of the week before seed date
---
--- Teams by region:
---   EU:        Alpha Wolves, Bravo Hawks, Golf Titans
---   NA East:   Charlie Foxes, Hotel Phantoms
---   NA West:   Delta Ravens, India Reapers
---   Crossover: Echo Storm, Juliet Specters
---   APAC:      Foxtrot Vipers
---
--- Key NA↔EU crossover windows (UTC):
---   EU evening:      16:00–23:00
---   NA East evening: 23:00–04:00
---   Crossover:       19:00–01:00 (EU late + NA East afternoon)
+-- Replaces the previous 6-team demo data from 20260316000005.
+-- Deletes all demo-* users and related data, then re-inserts.
 -- ============================================================
 
--- ── Admin account ────────────────────────────────────────────
-do $$
-declare
-  v_user_id uuid := '00000000-0000-0000-0000-000000000001';
-  v_email   text := 'admin@dev.local';
-begin
-  insert into auth.users (
-    id, instance_id, aud, role,
-    email, encrypted_password, email_confirmed_at,
-    confirmation_token, recovery_token, email_change_token_new,
-    email_change, email_change_token_current,
-    raw_app_meta_data, raw_user_meta_data,
-    is_super_admin, is_sso_user, is_anonymous,
-    created_at, updated_at
-  ) values (
-    v_user_id,
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated',
-    v_email,
-    extensions.crypt('admin1234', extensions.gen_salt('bf', 10)),
-    now(),
-    '', '', '', '', '',
-    '{"provider": "email", "providers": ["email"]}'::jsonb,
-    '{"username": "DevAdmin", "role": "admin"}'::jsonb,
-    false, false, false,
-    now(), now()
-  ) on conflict (id) do nothing;
+-- ── Clean up old demo data ─────────────────────────────────
+-- Order matters: child tables first, then parents.
 
-  insert into auth.identities (
-    user_id, provider_id, provider, identity_data,
-    last_sign_in_at, created_at, updated_at
-  ) values (
-    v_user_id, v_email, 'email',
-    jsonb_build_object('sub', v_user_id::text, 'email', v_email),
-    now(), now(), now()
-  ) on conflict (provider_id, provider) do nothing;
-end $$;
+-- scrim_teams for demo scrims
+delete from public.scrim_teams
+where scrim_id in (
+  select id from public.scrims
+  where organizer_id in (select id from auth.users where email like 'demo-%@dev.local')
+);
 
--- ── Demo players (10 leaders + 30 players + 2 fillers) ──────
+-- scrims by demo organizers
+delete from public.scrims
+where organizer_id in (select id from auth.users where email like 'demo-%@dev.local');
+
+-- availabilities for demo users
+delete from public.availabilities
+where user_id in (select id from auth.users where email like 'demo-%@dev.local');
+
+-- team_members for demo teams
+delete from public.team_members
+where team_id in (
+  select id from public.teams
+  where leader_id in (select id from auth.users where email like 'demo-%@dev.local')
+);
+
+-- teams led by demo users
+delete from public.teams
+where leader_id in (select id from auth.users where email like 'demo-%@dev.local');
+
+-- profiles for demo users
+delete from public.profiles
+where id in (select id from auth.users where email like 'demo-%@dev.local');
+
+-- auth identities and users
+delete from auth.identities
+where user_id in (select id from auth.users where email like 'demo-%@dev.local');
+
+delete from auth.users
+where email like 'demo-%@dev.local';
+
+-- ── Demo auth users (10 leaders + 30 players + 2 fillers) ──
 do $$
 declare
   uids uuid[] := array[
-    -- Leaders 1–10
     '00000000-0000-0000-1000-000000000001'::uuid,
     '00000000-0000-0000-1000-000000000002'::uuid,
     '00000000-0000-0000-1000-000000000003'::uuid,
@@ -80,7 +59,6 @@ declare
     '00000000-0000-0000-1000-000000000008'::uuid,
     '00000000-0000-0000-1000-000000000009'::uuid,
     '00000000-0000-0000-1000-000000000010'::uuid,
-    -- Players 1–30
     '00000000-0000-0000-2000-000000000001'::uuid,
     '00000000-0000-0000-2000-000000000002'::uuid,
     '00000000-0000-0000-2000-000000000003'::uuid,
@@ -111,98 +89,61 @@ declare
     '00000000-0000-0000-2000-000000000028'::uuid,
     '00000000-0000-0000-2000-000000000029'::uuid,
     '00000000-0000-0000-2000-000000000030'::uuid,
-    -- Fillers 1–2
     '00000000-0000-0000-4000-000000000001'::uuid,
     '00000000-0000-0000-4000-000000000002'::uuid
   ];
   emails text[] := array[
-    -- Leaders
     'demo-alpha-lead@dev.local',   'demo-bravo-lead@dev.local',
     'demo-charlie-lead@dev.local', 'demo-delta-lead@dev.local',
     'demo-echo-lead@dev.local',    'demo-foxtrot-lead@dev.local',
     'demo-golf-lead@dev.local',    'demo-hotel-lead@dev.local',
     'demo-india-lead@dev.local',   'demo-juliet-lead@dev.local',
-    -- Alpha players
     'demo-alpha-rifle@dev.local',  'demo-alpha-sniper@dev.local',  'demo-alpha-support@dev.local',
-    -- Bravo players
     'demo-bravo-rifle@dev.local',  'demo-bravo-sniper@dev.local',  'demo-bravo-support@dev.local',
-    -- Charlie players
     'demo-charlie-rifle@dev.local','demo-charlie-sniper@dev.local','demo-charlie-support@dev.local',
-    -- Delta players
     'demo-delta-rifle@dev.local',  'demo-delta-sniper@dev.local',  'demo-delta-support@dev.local',
-    -- Echo players
     'demo-echo-rifle@dev.local',   'demo-echo-sniper@dev.local',   'demo-echo-support@dev.local',
-    -- Foxtrot players
     'demo-foxtrot-rifle@dev.local','demo-foxtrot-sniper@dev.local','demo-foxtrot-support@dev.local',
-    -- Golf players
     'demo-golf-rifle@dev.local',   'demo-golf-sniper@dev.local',   'demo-golf-support@dev.local',
-    -- Hotel players
     'demo-hotel-rifle@dev.local',  'demo-hotel-sniper@dev.local',  'demo-hotel-support@dev.local',
-    -- India players
     'demo-india-rifle@dev.local',  'demo-india-sniper@dev.local',  'demo-india-support@dev.local',
-    -- Juliet players
     'demo-juliet-rifle@dev.local', 'demo-juliet-sniper@dev.local', 'demo-juliet-support@dev.local',
-    -- Fillers
     'demo-filler-1@dev.local',     'demo-filler-2@dev.local'
   ];
   usernames text[] := array[
-    -- Leaders
     'demo-AlphaWolf',   'demo-HawkEye',
     'demo-FoxHound',    'demo-RavenClaw',
     'demo-StormRider',  'demo-ViperFang',
     'demo-TitanForce',  'demo-PhantomX',
     'demo-ReaperMain',  'demo-SpecterOps',
-    -- Alpha players
     'demo-RazorAim',    'demo-GhostShot',   'demo-IronSights',
-    -- Bravo players
     'demo-BlazeRush',   'demo-StormBreak',  'demo-NightOwl',
-    -- Charlie players
     'demo-ViperStrike', 'demo-ThunderClap', 'demo-ShadowStep',
-    -- Delta players
     'demo-FrostBite',   'demo-DeadEye',     'demo-SteelNerve',
-    -- Echo players
     'demo-PhantomAce',  'demo-NeonBlade',   'demo-CyberPulse',
-    -- Foxtrot players
     'demo-DragonFire',  'demo-TigerClaw',   'demo-SilentWind',
-    -- Golf players
     'demo-CrushMode',   'demo-WarHammer',   'demo-IronWill',
-    -- Hotel players
     'demo-DarkMatter',  'demo-VoidWalker',  'demo-NullPoint',
-    -- India players
     'demo-SoulHarvest', 'demo-GrimShade',   'demo-BoneCrush',
-    -- Juliet players
     'demo-GhostProto',  'demo-ShadowOps',   'demo-MidnightRun',
-    -- Fillers
     'demo-LoneStar',    'demo-RogueAgent'
   ];
   timezones text[] := array[
-    -- Leaders
     'Europe/Paris',         'Europe/Warsaw',
     'America/New_York',     'America/Los_Angeles',
     'Europe/London',        'Asia/Tokyo',
     'Europe/Berlin',        'America/New_York',
     'America/Denver',       'Europe/London',
-    -- Alpha players (EU West)
     'Europe/Berlin',        'Europe/London',        'Europe/Paris',
-    -- Bravo players (EU East)
     'Europe/Warsaw',        'Europe/Madrid',        'Europe/Bucharest',
-    -- Charlie players (NA East)
     'America/Toronto',      'America/Chicago',      'America/New_York',
-    -- Delta players (NA West)
     'America/Denver',       'America/Vancouver',    'America/Los_Angeles',
-    -- Echo players (Mixed EU/NA)
     'America/New_York',     'Europe/Berlin',        'Europe/London',
-    -- Foxtrot players (APAC)
     'Asia/Singapore',       'Australia/Sydney',     'Asia/Tokyo',
-    -- Golf players (EU Central)
     'Europe/Amsterdam',     'Europe/Stockholm',     'Europe/Berlin',
-    -- Hotel players (NA East)
     'America/New_York',     'America/Toronto',      'America/Chicago',
-    -- India players (NA West/Mountain)
     'America/Denver',       'America/Phoenix',      'America/Los_Angeles',
-    -- Juliet players (EU/NA crossover)
     'Europe/Dublin',        'America/Toronto',      'Europe/London',
-    -- Fillers
     'Europe/Paris',         'America/New_York'
   ];
   roles text[] := array[
@@ -252,7 +193,7 @@ begin
   end loop;
 end $$;
 
--- ── Teams ─────────────────────────────────────────────────────
+-- ── Demo teams ─────────────────────────────────────────────
 insert into public.teams (id, name, leader_id) values
   ('00000000-0000-0000-3000-000000000001', 'Demo Alpha Wolves',    '00000000-0000-0000-1000-000000000001'),
   ('00000000-0000-0000-3000-000000000002', 'Demo Bravo Hawks',     '00000000-0000-0000-1000-000000000002'),
@@ -266,467 +207,326 @@ insert into public.teams (id, name, leader_id) values
   ('00000000-0000-0000-3000-000000000010', 'Demo Juliet Specters', '00000000-0000-0000-1000-000000000010')
 on conflict (id) do nothing;
 
--- ── Team members (3 active members per team) ──────────────────
+-- ── Demo team members (3 per team) ─────────────────────────
 insert into public.team_members (team_id, user_id, invite_email, invite_token, status, activated_at) values
-  -- Alpha Wolves
   ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000001','demo-alpha-rifle@dev.local',   'tok-a-r','active',now()),
   ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000002','demo-alpha-sniper@dev.local',  'tok-a-s','active',now()),
   ('00000000-0000-0000-3000-000000000001','00000000-0000-0000-2000-000000000003','demo-alpha-support@dev.local', 'tok-a-u','active',now()),
-  -- Bravo Hawks
   ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000004','demo-bravo-rifle@dev.local',   'tok-b-r','active',now()),
   ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000005','demo-bravo-sniper@dev.local',  'tok-b-s','active',now()),
   ('00000000-0000-0000-3000-000000000002','00000000-0000-0000-2000-000000000006','demo-bravo-support@dev.local', 'tok-b-u','active',now()),
-  -- Charlie Foxes
   ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000007','demo-charlie-rifle@dev.local', 'tok-c-r','active',now()),
   ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000008','demo-charlie-sniper@dev.local','tok-c-s','active',now()),
   ('00000000-0000-0000-3000-000000000003','00000000-0000-0000-2000-000000000009','demo-charlie-support@dev.local','tok-c-u','active',now()),
-  -- Delta Ravens
   ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000010','demo-delta-rifle@dev.local',   'tok-d-r','active',now()),
   ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000011','demo-delta-sniper@dev.local',  'tok-d-s','active',now()),
   ('00000000-0000-0000-3000-000000000004','00000000-0000-0000-2000-000000000012','demo-delta-support@dev.local', 'tok-d-u','active',now()),
-  -- Echo Storm
   ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000013','demo-echo-rifle@dev.local',    'tok-e-r','active',now()),
   ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000014','demo-echo-sniper@dev.local',   'tok-e-s','active',now()),
   ('00000000-0000-0000-3000-000000000005','00000000-0000-0000-2000-000000000015','demo-echo-support@dev.local',  'tok-e-u','active',now()),
-  -- Foxtrot Vipers
   ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000016','demo-foxtrot-rifle@dev.local', 'tok-f-r','active',now()),
   ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000017','demo-foxtrot-sniper@dev.local','tok-f-s','active',now()),
   ('00000000-0000-0000-3000-000000000006','00000000-0000-0000-2000-000000000018','demo-foxtrot-support@dev.local','tok-f-u','active',now()),
-  -- Golf Titans
   ('00000000-0000-0000-3000-000000000007','00000000-0000-0000-2000-000000000019','demo-golf-rifle@dev.local',    'tok-g-r','active',now()),
   ('00000000-0000-0000-3000-000000000007','00000000-0000-0000-2000-000000000020','demo-golf-sniper@dev.local',   'tok-g-s','active',now()),
   ('00000000-0000-0000-3000-000000000007','00000000-0000-0000-2000-000000000021','demo-golf-support@dev.local',  'tok-g-u','active',now()),
-  -- Hotel Phantoms
   ('00000000-0000-0000-3000-000000000008','00000000-0000-0000-2000-000000000022','demo-hotel-rifle@dev.local',   'tok-h-r','active',now()),
   ('00000000-0000-0000-3000-000000000008','00000000-0000-0000-2000-000000000023','demo-hotel-sniper@dev.local',  'tok-h-s','active',now()),
   ('00000000-0000-0000-3000-000000000008','00000000-0000-0000-2000-000000000024','demo-hotel-support@dev.local', 'tok-h-u','active',now()),
-  -- India Reapers
   ('00000000-0000-0000-3000-000000000009','00000000-0000-0000-2000-000000000025','demo-india-rifle@dev.local',   'tok-i-r','active',now()),
   ('00000000-0000-0000-3000-000000000009','00000000-0000-0000-2000-000000000026','demo-india-sniper@dev.local',  'tok-i-s','active',now()),
   ('00000000-0000-0000-3000-000000000009','00000000-0000-0000-2000-000000000027','demo-india-support@dev.local', 'tok-i-u','active',now()),
-  -- Juliet Specters
   ('00000000-0000-0000-3000-000000000010','00000000-0000-0000-2000-000000000028','demo-juliet-rifle@dev.local',  'tok-j-r','active',now()),
   ('00000000-0000-0000-3000-000000000010','00000000-0000-0000-2000-000000000029','demo-juliet-sniper@dev.local', 'tok-j-s','active',now()),
   ('00000000-0000-0000-3000-000000000010','00000000-0000-0000-2000-000000000030','demo-juliet-support@dev.local','tok-j-u','active',now())
 on conflict do nothing;
 
--- ── Availabilities ────────────────────────────────────────────
--- anchor = Monday of next week. 5 windows per player.
---
--- Schedule overview (all times UTC, day offsets from anchor Monday):
---
--- ALPHA WOLVES (EU evening 17–23 UTC):
---   L1:  Mon 17:00–23:00  Tue 18:00–22:30  Wed 16:30–22:00  Fri 17:00–23:00  Sat 16:00–21:00
---   P1:  Mon 17:30–22:00  Tue 18:00–22:00  Wed 17:00–22:00  Fri 17:30–22:30  Sat 16:30–21:30
---   P2:  Mon 17:00–21:30  Tue 18:30–22:30  Wed 16:30–21:30  Fri 18:00–23:00  Sat 16:00–21:00
---   P3:  Mon 18:00–22:00  Wed 17:00–22:00  Thu 17:00–21:30  Fri 17:30–22:30  Sat 16:30–21:30
---
--- BRAVO HAWKS (EU evening 16–22 UTC):
---   L2:  Mon 16:00–21:00  Tue 16:30–21:30  Wed 16:00–22:00  Thu 16:00–21:00  Sat 15:30–20:30
---   P4:  Mon 16:30–21:30  Tue 16:00–21:00  Wed 16:30–22:00  Thu 16:30–21:30  Sat 16:00–21:00
---   P5:  Mon 16:00–20:30  Tue 17:00–21:30  Wed 16:00–21:30  Thu 16:00–21:00  Sat 15:30–20:00
---   P6:  Tue 16:00–21:00  Wed 17:00–22:00  Thu 16:30–21:30  Fri 16:00–21:00  Sat 16:00–20:30
---
--- CHARLIE FOXES (NA East 23–04 UTC):
---   L3:  Mon 23:00–04:00+1  Wed 22:30–03:30+1  Thu 23:00–04:00+1  Fri 23:30–04:00+1  Sat 22:30–04:00+1
---   P7:  Mon 23:30–04:00+1  Wed 23:00–03:30+1  Thu 23:00–03:30+1  Fri 23:00–04:00+1  Sat 23:00–04:00+1
---   P8:  Mon 23:00–03:30+1  Wed 22:30–03:00+1  Thu 23:30–04:30+1  Sat 22:30–03:30+1  Sun 23:00–04:00+1
---   P9:  Wed 23:00–04:00+1  Thu 23:00–03:30+1  Fri 23:00–03:30+1  Sat 23:00–04:00+1  Sun 23:30–04:00+1
---
--- DELTA RAVENS (NA West 02–07 UTC):
---   L4:  Tue 02:00–07:00  Wed 02:30–07:00  Thu 02:00–06:30  Fri 02:00–07:00  Sat 02:00–07:00
---   P10: Tue 02:30–07:00  Wed 02:00–06:30  Thu 02:00–07:00  Fri 02:30–07:00  Sat 02:00–06:30
---   P11: Tue 02:00–06:30  Wed 02:30–07:00  Thu 02:30–06:30  Sat 02:00–07:00  Sun 02:00–06:30
---   P12: Tue 02:30–07:00  Thu 02:00–07:00  Fri 02:00–06:30  Sat 02:30–07:00  Sun 02:30–07:00
---
--- ECHO STORM (Crossover 19–01 UTC):
---   L5:  Mon 19:30–01:00+1  Wed 19:00–00:00+1  Thu 20:00–01:00+1  Fri 19:00–01:00+1  Sat 19:00–00:30+1
---   P13: Mon 20:00–01:00+1  Wed 19:30–00:00+1  Thu 19:30–00:30+1  Fri 19:30–01:00+1  Sat 19:30–01:00+1
---   P14: Mon 19:30–00:30+1  Wed 19:00–23:30     Fri 19:00–00:30+1  Sat 19:00–00:00+1  Sun 20:00–01:00+1
---   P15: Mon 20:00–00:30+1  Wed 19:30–00:00+1  Thu 20:00–00:30+1  Fri 20:00–01:00+1  Sat 19:30–00:30+1
---
--- FOXTROT VIPERS (APAC 08–15 UTC):
---   L6:  Mon 08:00–13:00  Tue 09:00–14:00  Thu 08:30–14:00  Sat 08:00–13:00  Sun 08:00–13:00
---   P16: Mon 08:30–13:30  Tue 09:00–14:00  Thu 09:00–14:30  Sat 08:30–13:30  Sun 08:00–12:30
---   P17: Tue 08:30–13:30  Wed 09:00–14:00  Thu 08:00–13:00  Sat 09:00–14:00  Sun 08:30–13:30
---   P18: Mon 09:00–14:00  Tue 08:00–13:00  Thu 09:00–14:00  Sat 08:00–12:30  Sun 09:00–14:00
---
--- GOLF TITANS (EU Central 17–22:30 UTC):
---   L7:  Mon 17:00–22:00  Wed 17:00–22:30  Thu 17:30–22:00  Fri 17:00–22:30  Sat 16:30–22:00
---   P19: Mon 17:30–22:00  Wed 17:30–22:30  Thu 17:00–22:00  Fri 17:00–22:00  Sat 17:00–22:00
---   P20: Mon 17:00–21:30  Wed 17:00–22:00  Fri 17:30–22:30  Sat 16:30–21:30  Sun 17:00–22:00
---   P21: Tue 17:30–22:30  Wed 17:30–22:00  Thu 17:00–22:00  Fri 17:00–22:00  Sat 17:00–22:00
---
--- HOTEL PHANTOMS (NA East 23–04:30 UTC):
---   L8:  Mon 23:00–04:00+1  Tue 23:30–04:00+1  Wed 23:00–04:00+1  Fri 23:00–04:30+1  Sat 22:30–04:00+1
---   P22: Mon 23:30–04:00+1  Wed 23:00–03:30+1  Fri 23:00–04:00+1  Sat 23:00–04:00+1  Sun 23:00–04:00+1
---   P23: Tue 23:00–03:30+1  Wed 23:30–04:00+1  Thu 23:00–04:00+1  Fri 23:30–04:30+1  Sat 23:00–04:00+1
---   P24: Mon 23:00–03:30+1  Wed 23:00–04:00+1  Fri 23:00–04:00+1  Sat 22:30–03:30+1  Sun 23:30–04:00+1
---
--- INDIA REAPERS (NA West 02–07 UTC):
---   L9:  Mon 02:30–07:00  Wed 02:00–07:00  Fri 02:00–07:00  Sat 02:00–06:30  Sun 02:30–07:00
---   P25: Mon 02:00–06:30  Wed 02:30–07:00  Thu 02:00–06:30  Fri 02:30–07:00  Sat 02:30–07:00
---   P26: Tue 02:00–07:00  Wed 02:00–06:30  Fri 02:00–06:30  Sat 02:00–07:00  Sun 02:00–06:30
---   P27: Mon 03:00–07:00  Wed 02:30–07:00  Thu 02:30–07:00  Fri 02:00–07:00  Sun 02:00–07:00
---
--- JULIET SPECTERS (Crossover 19–01:30 UTC):
---   L10: Tue 19:30–01:00+1  Wed 20:00–01:00+1  Thu 19:30–00:30+1  Sat 19:00–01:00+1  Sun 20:00–01:30+1
---   P28: Tue 20:00–01:30+1  Wed 19:30–00:30+1  Thu 20:00–01:00+1  Sat 19:30–01:00+1  Sun 19:30–01:00+1
---   P29: Tue 19:30–00:30+1  Thu 19:30–01:00+1  Fri 20:00–01:00+1  Sat 20:00–01:30+1  Sun 19:30–00:30+1
---   P30: Tue 20:00–01:00+1  Wed 20:00–01:00+1  Fri 19:30–00:30+1  Sat 19:30–01:30+1  Sun 20:00–01:00+1
---
--- FILLERS:
---   F1:  Mon 18:00–23:00  Wed 18:00–23:00  Fri 19:00–00:00+1  Sat 17:00–23:00
---   F2:  Tue 23:00–04:00+1  Thu 23:00–04:00+1  Sat 22:00–04:00+1
---
--- SCRIM-MATCHABLE OVERLAPS:
---   Wed 18:00 UTC → Alpha ∩ Bravo (EU vs EU)
---   Fri 19:00 UTC → Golf ∩ Echo (EU vs crossover)
---   Sat 23:00 UTC → Charlie ∩ Hotel (NA East vs NA East)
---   Mon 20:00 UTC → Alpha ∩ Echo (EU late vs crossover)
---   Thu 03:00 UTC → Delta ∩ India (NA West vs NA West)
---   Sat 19:00 UTC → Juliet ∩ Golf (crossover vs EU)
--- ============================================================
-
+-- ── Demo availabilities (5 windows per player) ─────────────
 do $$
 declare
-  a date := date_trunc('week', CURRENT_DATE + interval '7 days')::date; -- anchor = next Monday
+  a date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;
 begin
-  -- ── ALPHA WOLVES ──────────────────────────────────────────
+  -- ALPHA WOLVES (EU evening 17–23 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L1: Mon 17–23, Tue 18–22:30, Wed 16:30–22, Fri 17–23, Sat 16–21
     ('00000000-0000-0000-1000-000000000001', a + interval '0d 17h',     a + interval '0d 23h'),
     ('00000000-0000-0000-1000-000000000001', a + interval '1d 18h',     a + interval '1d 22h 30m'),
     ('00000000-0000-0000-1000-000000000001', a + interval '2d 16h 30m', a + interval '2d 22h'),
     ('00000000-0000-0000-1000-000000000001', a + interval '4d 17h',     a + interval '4d 23h'),
     ('00000000-0000-0000-1000-000000000001', a + interval '5d 16h',     a + interval '5d 21h'),
-    -- P1: Mon 17:30–22, Tue 18–22, Wed 17–22, Fri 17:30–22:30, Sat 16:30–21:30
     ('00000000-0000-0000-2000-000000000001', a + interval '0d 17h 30m', a + interval '0d 22h'),
     ('00000000-0000-0000-2000-000000000001', a + interval '1d 18h',     a + interval '1d 22h'),
     ('00000000-0000-0000-2000-000000000001', a + interval '2d 17h',     a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000001', a + interval '4d 17h 30m', a + interval '4d 22h 30m'),
     ('00000000-0000-0000-2000-000000000001', a + interval '5d 16h 30m', a + interval '5d 21h 30m'),
-    -- P2: Mon 17–21:30, Tue 18:30–22:30, Wed 16:30–21:30, Fri 18–23, Sat 16–21
     ('00000000-0000-0000-2000-000000000002', a + interval '0d 17h',     a + interval '0d 21h 30m'),
     ('00000000-0000-0000-2000-000000000002', a + interval '1d 18h 30m', a + interval '1d 22h 30m'),
     ('00000000-0000-0000-2000-000000000002', a + interval '2d 16h 30m', a + interval '2d 21h 30m'),
     ('00000000-0000-0000-2000-000000000002', a + interval '4d 18h',     a + interval '4d 23h'),
     ('00000000-0000-0000-2000-000000000002', a + interval '5d 16h',     a + interval '5d 21h'),
-    -- P3: Mon 18–22, Wed 17–22, Thu 17–21:30, Fri 17:30–22:30, Sat 16:30–21:30
     ('00000000-0000-0000-2000-000000000003', a + interval '0d 18h',     a + interval '0d 22h'),
     ('00000000-0000-0000-2000-000000000003', a + interval '2d 17h',     a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000003', a + interval '3d 17h',     a + interval '3d 21h 30m'),
     ('00000000-0000-0000-2000-000000000003', a + interval '4d 17h 30m', a + interval '4d 22h 30m'),
     ('00000000-0000-0000-2000-000000000003', a + interval '5d 16h 30m', a + interval '5d 21h 30m');
 
-  -- ── BRAVO HAWKS ───────────────────────────────────────────
+  -- BRAVO HAWKS (EU evening 16–22 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L2: Mon 16–21, Tue 16:30–21:30, Wed 16–22, Thu 16–21, Sat 15:30–20:30
     ('00000000-0000-0000-1000-000000000002', a + interval '0d 16h',     a + interval '0d 21h'),
     ('00000000-0000-0000-1000-000000000002', a + interval '1d 16h 30m', a + interval '1d 21h 30m'),
     ('00000000-0000-0000-1000-000000000002', a + interval '2d 16h',     a + interval '2d 22h'),
     ('00000000-0000-0000-1000-000000000002', a + interval '3d 16h',     a + interval '3d 21h'),
     ('00000000-0000-0000-1000-000000000002', a + interval '5d 15h 30m', a + interval '5d 20h 30m'),
-    -- P4: Mon 16:30–21:30, Tue 16–21, Wed 16:30–22, Thu 16:30–21:30, Sat 16–21
     ('00000000-0000-0000-2000-000000000004', a + interval '0d 16h 30m', a + interval '0d 21h 30m'),
     ('00000000-0000-0000-2000-000000000004', a + interval '1d 16h',     a + interval '1d 21h'),
     ('00000000-0000-0000-2000-000000000004', a + interval '2d 16h 30m', a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000004', a + interval '3d 16h 30m', a + interval '3d 21h 30m'),
     ('00000000-0000-0000-2000-000000000004', a + interval '5d 16h',     a + interval '5d 21h'),
-    -- P5: Mon 16–20:30, Tue 17–21:30, Wed 16–21:30, Thu 16–21, Sat 15:30–20
     ('00000000-0000-0000-2000-000000000005', a + interval '0d 16h',     a + interval '0d 20h 30m'),
     ('00000000-0000-0000-2000-000000000005', a + interval '1d 17h',     a + interval '1d 21h 30m'),
     ('00000000-0000-0000-2000-000000000005', a + interval '2d 16h',     a + interval '2d 21h 30m'),
     ('00000000-0000-0000-2000-000000000005', a + interval '3d 16h',     a + interval '3d 21h'),
     ('00000000-0000-0000-2000-000000000005', a + interval '5d 15h 30m', a + interval '5d 20h'),
-    -- P6: Tue 16–21, Wed 17–22, Thu 16:30–21:30, Fri 16–21, Sat 16–20:30
     ('00000000-0000-0000-2000-000000000006', a + interval '1d 16h',     a + interval '1d 21h'),
     ('00000000-0000-0000-2000-000000000006', a + interval '2d 17h',     a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000006', a + interval '3d 16h 30m', a + interval '3d 21h 30m'),
     ('00000000-0000-0000-2000-000000000006', a + interval '4d 16h',     a + interval '4d 21h'),
     ('00000000-0000-0000-2000-000000000006', a + interval '5d 16h',     a + interval '5d 20h 30m');
 
-  -- ── CHARLIE FOXES ─────────────────────────────────────────
+  -- CHARLIE FOXES (NA East 23–04 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L3: Mon 23–04+1, Wed 22:30–03:30+1, Thu 23–04+1, Fri 23:30–04+1, Sat 22:30–04+1
     ('00000000-0000-0000-1000-000000000003', a + interval '0d 23h',     a + interval '1d 4h'),
     ('00000000-0000-0000-1000-000000000003', a + interval '2d 22h 30m', a + interval '3d 3h 30m'),
     ('00000000-0000-0000-1000-000000000003', a + interval '3d 23h',     a + interval '4d 4h'),
     ('00000000-0000-0000-1000-000000000003', a + interval '4d 23h 30m', a + interval '5d 4h'),
     ('00000000-0000-0000-1000-000000000003', a + interval '5d 22h 30m', a + interval '6d 4h'),
-    -- P7: Mon 23:30–04+1, Wed 23–03:30+1, Thu 23–03:30+1, Fri 23–04+1, Sat 23–04+1
     ('00000000-0000-0000-2000-000000000007', a + interval '0d 23h 30m', a + interval '1d 4h'),
     ('00000000-0000-0000-2000-000000000007', a + interval '2d 23h',     a + interval '3d 3h 30m'),
     ('00000000-0000-0000-2000-000000000007', a + interval '3d 23h',     a + interval '4d 3h 30m'),
     ('00000000-0000-0000-2000-000000000007', a + interval '4d 23h',     a + interval '5d 4h'),
     ('00000000-0000-0000-2000-000000000007', a + interval '5d 23h',     a + interval '6d 4h'),
-    -- P8: Mon 23–03:30+1, Wed 22:30–03+1, Thu 23:30–04:30+1, Sat 22:30–03:30+1, Sun 23–04+1
     ('00000000-0000-0000-2000-000000000008', a + interval '0d 23h',     a + interval '1d 3h 30m'),
     ('00000000-0000-0000-2000-000000000008', a + interval '2d 22h 30m', a + interval '3d 3h'),
     ('00000000-0000-0000-2000-000000000008', a + interval '3d 23h 30m', a + interval '4d 4h 30m'),
     ('00000000-0000-0000-2000-000000000008', a + interval '5d 22h 30m', a + interval '6d 3h 30m'),
     ('00000000-0000-0000-2000-000000000008', a + interval '6d 23h',     a + interval '7d 4h'),
-    -- P9: Wed 23–04+1, Thu 23–03:30+1, Fri 23–03:30+1, Sat 23–04+1, Sun 23:30–04+1
     ('00000000-0000-0000-2000-000000000009', a + interval '2d 23h',     a + interval '3d 4h'),
     ('00000000-0000-0000-2000-000000000009', a + interval '3d 23h',     a + interval '4d 3h 30m'),
     ('00000000-0000-0000-2000-000000000009', a + interval '4d 23h',     a + interval '5d 3h 30m'),
     ('00000000-0000-0000-2000-000000000009', a + interval '5d 23h',     a + interval '6d 4h'),
     ('00000000-0000-0000-2000-000000000009', a + interval '6d 23h 30m', a + interval '7d 4h');
 
-  -- ── DELTA RAVENS ──────────────────────────────────────────
+  -- DELTA RAVENS (NA West 02–07 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L4: Tue 02–07, Wed 02:30–07, Thu 02–06:30, Fri 02–07, Sat 02–07
     ('00000000-0000-0000-1000-000000000004', a + interval '1d 2h',      a + interval '1d 7h'),
     ('00000000-0000-0000-1000-000000000004', a + interval '2d 2h 30m',  a + interval '2d 7h'),
     ('00000000-0000-0000-1000-000000000004', a + interval '3d 2h',      a + interval '3d 6h 30m'),
     ('00000000-0000-0000-1000-000000000004', a + interval '4d 2h',      a + interval '4d 7h'),
     ('00000000-0000-0000-1000-000000000004', a + interval '5d 2h',      a + interval '5d 7h'),
-    -- P10: Tue 02:30–07, Wed 02–06:30, Thu 02–07, Fri 02:30–07, Sat 02–06:30
     ('00000000-0000-0000-2000-000000000010', a + interval '1d 2h 30m',  a + interval '1d 7h'),
     ('00000000-0000-0000-2000-000000000010', a + interval '2d 2h',      a + interval '2d 6h 30m'),
     ('00000000-0000-0000-2000-000000000010', a + interval '3d 2h',      a + interval '3d 7h'),
     ('00000000-0000-0000-2000-000000000010', a + interval '4d 2h 30m',  a + interval '4d 7h'),
     ('00000000-0000-0000-2000-000000000010', a + interval '5d 2h',      a + interval '5d 6h 30m'),
-    -- P11: Tue 02–06:30, Wed 02:30–07, Thu 02:30–06:30, Sat 02–07, Sun 02–06:30
     ('00000000-0000-0000-2000-000000000011', a + interval '1d 2h',      a + interval '1d 6h 30m'),
     ('00000000-0000-0000-2000-000000000011', a + interval '2d 2h 30m',  a + interval '2d 7h'),
     ('00000000-0000-0000-2000-000000000011', a + interval '3d 2h 30m',  a + interval '3d 6h 30m'),
     ('00000000-0000-0000-2000-000000000011', a + interval '5d 2h',      a + interval '5d 7h'),
     ('00000000-0000-0000-2000-000000000011', a + interval '6d 2h',      a + interval '6d 6h 30m'),
-    -- P12: Tue 02:30–07, Thu 02–07, Fri 02–06:30, Sat 02:30–07, Sun 02:30–07
     ('00000000-0000-0000-2000-000000000012', a + interval '1d 2h 30m',  a + interval '1d 7h'),
     ('00000000-0000-0000-2000-000000000012', a + interval '3d 2h',      a + interval '3d 7h'),
     ('00000000-0000-0000-2000-000000000012', a + interval '4d 2h',      a + interval '4d 6h 30m'),
     ('00000000-0000-0000-2000-000000000012', a + interval '5d 2h 30m',  a + interval '5d 7h'),
     ('00000000-0000-0000-2000-000000000012', a + interval '6d 2h 30m',  a + interval '6d 7h');
 
-  -- ── ECHO STORM ────────────────────────────────────────────
+  -- ECHO STORM (Crossover 19–01 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L5: Mon 19:30–01+1, Wed 19–00+1, Thu 20–01+1, Fri 19–01+1, Sat 19–00:30+1
     ('00000000-0000-0000-1000-000000000005', a + interval '0d 19h 30m', a + interval '1d 1h'),
     ('00000000-0000-0000-1000-000000000005', a + interval '2d 19h',     a + interval '3d 0h'),
     ('00000000-0000-0000-1000-000000000005', a + interval '3d 20h',     a + interval '4d 1h'),
     ('00000000-0000-0000-1000-000000000005', a + interval '4d 19h',     a + interval '5d 1h'),
     ('00000000-0000-0000-1000-000000000005', a + interval '5d 19h',     a + interval '6d 0h 30m'),
-    -- P13: Mon 20–01+1, Wed 19:30–00+1, Thu 19:30–00:30+1, Fri 19:30–01+1, Sat 19:30–01+1
     ('00000000-0000-0000-2000-000000000013', a + interval '0d 20h',     a + interval '1d 1h'),
     ('00000000-0000-0000-2000-000000000013', a + interval '2d 19h 30m', a + interval '3d 0h'),
     ('00000000-0000-0000-2000-000000000013', a + interval '3d 19h 30m', a + interval '4d 0h 30m'),
     ('00000000-0000-0000-2000-000000000013', a + interval '4d 19h 30m', a + interval '5d 1h'),
     ('00000000-0000-0000-2000-000000000013', a + interval '5d 19h 30m', a + interval '6d 1h'),
-    -- P14: Mon 19:30–00:30+1, Wed 19–23:30, Fri 19–00:30+1, Sat 19–00+1, Sun 20–01+1
     ('00000000-0000-0000-2000-000000000014', a + interval '0d 19h 30m', a + interval '1d 0h 30m'),
     ('00000000-0000-0000-2000-000000000014', a + interval '2d 19h',     a + interval '2d 23h 30m'),
     ('00000000-0000-0000-2000-000000000014', a + interval '4d 19h',     a + interval '5d 0h 30m'),
     ('00000000-0000-0000-2000-000000000014', a + interval '5d 19h',     a + interval '6d 0h'),
     ('00000000-0000-0000-2000-000000000014', a + interval '6d 20h',     a + interval '7d 1h'),
-    -- P15: Mon 20–00:30+1, Wed 19:30–00+1, Thu 20–00:30+1, Fri 20–01+1, Sat 19:30–00:30+1
     ('00000000-0000-0000-2000-000000000015', a + interval '0d 20h',     a + interval '1d 0h 30m'),
     ('00000000-0000-0000-2000-000000000015', a + interval '2d 19h 30m', a + interval '3d 0h'),
     ('00000000-0000-0000-2000-000000000015', a + interval '3d 20h',     a + interval '4d 0h 30m'),
     ('00000000-0000-0000-2000-000000000015', a + interval '4d 20h',     a + interval '5d 1h'),
     ('00000000-0000-0000-2000-000000000015', a + interval '5d 19h 30m', a + interval '6d 0h 30m');
 
-  -- ── FOXTROT VIPERS ────────────────────────────────────────
+  -- FOXTROT VIPERS (APAC 08–15 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L6: Mon 08–13, Tue 09–14, Thu 08:30–14, Sat 08–13, Sun 08–13
     ('00000000-0000-0000-1000-000000000006', a + interval '0d 8h',      a + interval '0d 13h'),
     ('00000000-0000-0000-1000-000000000006', a + interval '1d 9h',      a + interval '1d 14h'),
     ('00000000-0000-0000-1000-000000000006', a + interval '3d 8h 30m',  a + interval '3d 14h'),
     ('00000000-0000-0000-1000-000000000006', a + interval '5d 8h',      a + interval '5d 13h'),
     ('00000000-0000-0000-1000-000000000006', a + interval '6d 8h',      a + interval '6d 13h'),
-    -- P16: Mon 08:30–13:30, Tue 09–14, Thu 09–14:30, Sat 08:30–13:30, Sun 08–12:30
     ('00000000-0000-0000-2000-000000000016', a + interval '0d 8h 30m',  a + interval '0d 13h 30m'),
     ('00000000-0000-0000-2000-000000000016', a + interval '1d 9h',      a + interval '1d 14h'),
     ('00000000-0000-0000-2000-000000000016', a + interval '3d 9h',      a + interval '3d 14h 30m'),
     ('00000000-0000-0000-2000-000000000016', a + interval '5d 8h 30m',  a + interval '5d 13h 30m'),
     ('00000000-0000-0000-2000-000000000016', a + interval '6d 8h',      a + interval '6d 12h 30m'),
-    -- P17: Tue 08:30–13:30, Wed 09–14, Thu 08–13, Sat 09–14, Sun 08:30–13:30
     ('00000000-0000-0000-2000-000000000017', a + interval '1d 8h 30m',  a + interval '1d 13h 30m'),
     ('00000000-0000-0000-2000-000000000017', a + interval '2d 9h',      a + interval '2d 14h'),
     ('00000000-0000-0000-2000-000000000017', a + interval '3d 8h',      a + interval '3d 13h'),
     ('00000000-0000-0000-2000-000000000017', a + interval '5d 9h',      a + interval '5d 14h'),
     ('00000000-0000-0000-2000-000000000017', a + interval '6d 8h 30m',  a + interval '6d 13h 30m'),
-    -- P18: Mon 09–14, Tue 08–13, Thu 09–14, Sat 08–12:30, Sun 09–14
     ('00000000-0000-0000-2000-000000000018', a + interval '0d 9h',      a + interval '0d 14h'),
     ('00000000-0000-0000-2000-000000000018', a + interval '1d 8h',      a + interval '1d 13h'),
     ('00000000-0000-0000-2000-000000000018', a + interval '3d 9h',      a + interval '3d 14h'),
     ('00000000-0000-0000-2000-000000000018', a + interval '5d 8h',      a + interval '5d 12h 30m'),
     ('00000000-0000-0000-2000-000000000018', a + interval '6d 9h',      a + interval '6d 14h');
 
-  -- ── GOLF TITANS ───────────────────────────────────────────
+  -- GOLF TITANS (EU Central 17–22:30 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L7: Mon 17–22, Wed 17–22:30, Thu 17:30–22, Fri 17–22:30, Sat 16:30–22
     ('00000000-0000-0000-1000-000000000007', a + interval '0d 17h',     a + interval '0d 22h'),
     ('00000000-0000-0000-1000-000000000007', a + interval '2d 17h',     a + interval '2d 22h 30m'),
     ('00000000-0000-0000-1000-000000000007', a + interval '3d 17h 30m', a + interval '3d 22h'),
     ('00000000-0000-0000-1000-000000000007', a + interval '4d 17h',     a + interval '4d 22h 30m'),
     ('00000000-0000-0000-1000-000000000007', a + interval '5d 16h 30m', a + interval '5d 22h'),
-    -- P19: Mon 17:30–22, Wed 17:30–22:30, Thu 17–22, Fri 17–22, Sat 17–22
     ('00000000-0000-0000-2000-000000000019', a + interval '0d 17h 30m', a + interval '0d 22h'),
     ('00000000-0000-0000-2000-000000000019', a + interval '2d 17h 30m', a + interval '2d 22h 30m'),
     ('00000000-0000-0000-2000-000000000019', a + interval '3d 17h',     a + interval '3d 22h'),
     ('00000000-0000-0000-2000-000000000019', a + interval '4d 17h',     a + interval '4d 22h'),
     ('00000000-0000-0000-2000-000000000019', a + interval '5d 17h',     a + interval '5d 22h'),
-    -- P20: Mon 17–21:30, Wed 17–22, Fri 17:30–22:30, Sat 16:30–21:30, Sun 17–22
     ('00000000-0000-0000-2000-000000000020', a + interval '0d 17h',     a + interval '0d 21h 30m'),
     ('00000000-0000-0000-2000-000000000020', a + interval '2d 17h',     a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000020', a + interval '4d 17h 30m', a + interval '4d 22h 30m'),
     ('00000000-0000-0000-2000-000000000020', a + interval '5d 16h 30m', a + interval '5d 21h 30m'),
     ('00000000-0000-0000-2000-000000000020', a + interval '6d 17h',     a + interval '6d 22h'),
-    -- P21: Tue 17:30–22:30, Wed 17:30–22, Thu 17–22, Fri 17–22, Sat 17–22
     ('00000000-0000-0000-2000-000000000021', a + interval '1d 17h 30m', a + interval '1d 22h 30m'),
     ('00000000-0000-0000-2000-000000000021', a + interval '2d 17h 30m', a + interval '2d 22h'),
     ('00000000-0000-0000-2000-000000000021', a + interval '3d 17h',     a + interval '3d 22h'),
     ('00000000-0000-0000-2000-000000000021', a + interval '4d 17h',     a + interval '4d 22h'),
     ('00000000-0000-0000-2000-000000000021', a + interval '5d 17h',     a + interval '5d 22h');
 
-  -- ── HOTEL PHANTOMS ────────────────────────────────────────
+  -- HOTEL PHANTOMS (NA East 23–04:30 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L8: Mon 23–04+1, Tue 23:30–04+1, Wed 23–04+1, Fri 23–04:30+1, Sat 22:30–04+1
     ('00000000-0000-0000-1000-000000000008', a + interval '0d 23h',     a + interval '1d 4h'),
     ('00000000-0000-0000-1000-000000000008', a + interval '1d 23h 30m', a + interval '2d 4h'),
     ('00000000-0000-0000-1000-000000000008', a + interval '2d 23h',     a + interval '3d 4h'),
     ('00000000-0000-0000-1000-000000000008', a + interval '4d 23h',     a + interval '5d 4h 30m'),
     ('00000000-0000-0000-1000-000000000008', a + interval '5d 22h 30m', a + interval '6d 4h'),
-    -- P22: Mon 23:30–04+1, Wed 23–03:30+1, Fri 23–04+1, Sat 23–04+1, Sun 23–04+1
     ('00000000-0000-0000-2000-000000000022', a + interval '0d 23h 30m', a + interval '1d 4h'),
     ('00000000-0000-0000-2000-000000000022', a + interval '2d 23h',     a + interval '3d 3h 30m'),
     ('00000000-0000-0000-2000-000000000022', a + interval '4d 23h',     a + interval '5d 4h'),
     ('00000000-0000-0000-2000-000000000022', a + interval '5d 23h',     a + interval '6d 4h'),
     ('00000000-0000-0000-2000-000000000022', a + interval '6d 23h',     a + interval '7d 4h'),
-    -- P23: Tue 23–03:30+1, Wed 23:30–04+1, Thu 23–04+1, Fri 23:30–04:30+1, Sat 23–04+1
     ('00000000-0000-0000-2000-000000000023', a + interval '1d 23h',     a + interval '2d 3h 30m'),
     ('00000000-0000-0000-2000-000000000023', a + interval '2d 23h 30m', a + interval '3d 4h'),
     ('00000000-0000-0000-2000-000000000023', a + interval '3d 23h',     a + interval '4d 4h'),
     ('00000000-0000-0000-2000-000000000023', a + interval '4d 23h 30m', a + interval '5d 4h 30m'),
     ('00000000-0000-0000-2000-000000000023', a + interval '5d 23h',     a + interval '6d 4h'),
-    -- P24: Mon 23–03:30+1, Wed 23–04+1, Fri 23–04+1, Sat 22:30–03:30+1, Sun 23:30–04+1
     ('00000000-0000-0000-2000-000000000024', a + interval '0d 23h',     a + interval '1d 3h 30m'),
     ('00000000-0000-0000-2000-000000000024', a + interval '2d 23h',     a + interval '3d 4h'),
     ('00000000-0000-0000-2000-000000000024', a + interval '4d 23h',     a + interval '5d 4h'),
     ('00000000-0000-0000-2000-000000000024', a + interval '5d 22h 30m', a + interval '6d 3h 30m'),
     ('00000000-0000-0000-2000-000000000024', a + interval '6d 23h 30m', a + interval '7d 4h');
 
-  -- ── INDIA REAPERS ─────────────────────────────────────────
+  -- INDIA REAPERS (NA West 02–07 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L9: Mon 02:30–07, Wed 02–07, Fri 02–07, Sat 02–06:30, Sun 02:30–07
     ('00000000-0000-0000-1000-000000000009', a + interval '0d 2h 30m',  a + interval '0d 7h'),
     ('00000000-0000-0000-1000-000000000009', a + interval '2d 2h',      a + interval '2d 7h'),
     ('00000000-0000-0000-1000-000000000009', a + interval '4d 2h',      a + interval '4d 7h'),
     ('00000000-0000-0000-1000-000000000009', a + interval '5d 2h',      a + interval '5d 6h 30m'),
     ('00000000-0000-0000-1000-000000000009', a + interval '6d 2h 30m',  a + interval '6d 7h'),
-    -- P25: Mon 02–06:30, Wed 02:30–07, Thu 02–06:30, Fri 02:30–07, Sat 02:30–07
     ('00000000-0000-0000-2000-000000000025', a + interval '0d 2h',      a + interval '0d 6h 30m'),
     ('00000000-0000-0000-2000-000000000025', a + interval '2d 2h 30m',  a + interval '2d 7h'),
     ('00000000-0000-0000-2000-000000000025', a + interval '3d 2h',      a + interval '3d 6h 30m'),
     ('00000000-0000-0000-2000-000000000025', a + interval '4d 2h 30m',  a + interval '4d 7h'),
     ('00000000-0000-0000-2000-000000000025', a + interval '5d 2h 30m',  a + interval '5d 7h'),
-    -- P26: Tue 02–07, Wed 02–06:30, Fri 02–06:30, Sat 02–07, Sun 02–06:30
     ('00000000-0000-0000-2000-000000000026', a + interval '1d 2h',      a + interval '1d 7h'),
     ('00000000-0000-0000-2000-000000000026', a + interval '2d 2h',      a + interval '2d 6h 30m'),
     ('00000000-0000-0000-2000-000000000026', a + interval '4d 2h',      a + interval '4d 6h 30m'),
     ('00000000-0000-0000-2000-000000000026', a + interval '5d 2h',      a + interval '5d 7h'),
     ('00000000-0000-0000-2000-000000000026', a + interval '6d 2h',      a + interval '6d 6h 30m'),
-    -- P27: Mon 03–07, Wed 02:30–07, Thu 02:30–07, Fri 02–07, Sun 02–07
     ('00000000-0000-0000-2000-000000000027', a + interval '0d 3h',      a + interval '0d 7h'),
     ('00000000-0000-0000-2000-000000000027', a + interval '2d 2h 30m',  a + interval '2d 7h'),
     ('00000000-0000-0000-2000-000000000027', a + interval '3d 2h 30m',  a + interval '3d 7h'),
     ('00000000-0000-0000-2000-000000000027', a + interval '4d 2h',      a + interval '4d 7h'),
     ('00000000-0000-0000-2000-000000000027', a + interval '6d 2h',      a + interval '6d 7h');
 
-  -- ── JULIET SPECTERS ───────────────────────────────────────
+  -- JULIET SPECTERS (Crossover 19–01:30 UTC)
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- L10: Tue 19:30–01+1, Wed 20–01+1, Thu 19:30–00:30+1, Sat 19–01+1, Sun 20–01:30+1
     ('00000000-0000-0000-1000-000000000010', a + interval '1d 19h 30m', a + interval '2d 1h'),
     ('00000000-0000-0000-1000-000000000010', a + interval '2d 20h',     a + interval '3d 1h'),
     ('00000000-0000-0000-1000-000000000010', a + interval '3d 19h 30m', a + interval '4d 0h 30m'),
     ('00000000-0000-0000-1000-000000000010', a + interval '5d 19h',     a + interval '6d 1h'),
     ('00000000-0000-0000-1000-000000000010', a + interval '6d 20h',     a + interval '7d 1h 30m'),
-    -- P28: Tue 20–01:30+1, Wed 19:30–00:30+1, Thu 20–01+1, Sat 19:30–01+1, Sun 19:30–01+1
     ('00000000-0000-0000-2000-000000000028', a + interval '1d 20h',     a + interval '2d 1h 30m'),
     ('00000000-0000-0000-2000-000000000028', a + interval '2d 19h 30m', a + interval '3d 0h 30m'),
     ('00000000-0000-0000-2000-000000000028', a + interval '3d 20h',     a + interval '4d 1h'),
     ('00000000-0000-0000-2000-000000000028', a + interval '5d 19h 30m', a + interval '6d 1h'),
     ('00000000-0000-0000-2000-000000000028', a + interval '6d 19h 30m', a + interval '7d 1h'),
-    -- P29: Tue 19:30–00:30+1, Thu 19:30–01+1, Fri 20–01+1, Sat 20–01:30+1, Sun 19:30–00:30+1
     ('00000000-0000-0000-2000-000000000029', a + interval '1d 19h 30m', a + interval '2d 0h 30m'),
     ('00000000-0000-0000-2000-000000000029', a + interval '3d 19h 30m', a + interval '4d 1h'),
     ('00000000-0000-0000-2000-000000000029', a + interval '4d 20h',     a + interval '5d 1h'),
     ('00000000-0000-0000-2000-000000000029', a + interval '5d 20h',     a + interval '6d 1h 30m'),
     ('00000000-0000-0000-2000-000000000029', a + interval '6d 19h 30m', a + interval '7d 0h 30m'),
-    -- P30: Tue 20–01+1, Wed 20–01+1, Fri 19:30–00:30+1, Sat 19:30–01:30+1, Sun 20–01+1
     ('00000000-0000-0000-2000-000000000030', a + interval '1d 20h',     a + interval '2d 1h'),
     ('00000000-0000-0000-2000-000000000030', a + interval '2d 20h',     a + interval '3d 1h'),
     ('00000000-0000-0000-2000-000000000030', a + interval '4d 19h 30m', a + interval '5d 0h 30m'),
     ('00000000-0000-0000-2000-000000000030', a + interval '5d 19h 30m', a + interval '6d 1h 30m'),
     ('00000000-0000-0000-2000-000000000030', a + interval '6d 20h',     a + interval '7d 1h');
 
-  -- ── FILLERS ───────────────────────────────────────────────
+  -- FILLERS
   insert into public.availabilities (user_id, starts_at, ends_at) values
-    -- F1 (EU timezone): Mon 18–23, Wed 18–23, Fri 19–00+1, Sat 17–23
     ('00000000-0000-0000-4000-000000000001', a + interval '0d 18h',     a + interval '0d 23h'),
     ('00000000-0000-0000-4000-000000000001', a + interval '2d 18h',     a + interval '2d 23h'),
     ('00000000-0000-0000-4000-000000000001', a + interval '4d 19h',     a + interval '5d 0h'),
     ('00000000-0000-0000-4000-000000000001', a + interval '5d 17h',     a + interval '5d 23h'),
-    -- F2 (NA East timezone): Tue 23–04+1, Thu 23–04+1, Sat 22–04+1
     ('00000000-0000-0000-4000-000000000002', a + interval '1d 23h',     a + interval '2d 4h'),
     ('00000000-0000-0000-4000-000000000002', a + interval '3d 23h',     a + interval '4d 4h'),
     ('00000000-0000-0000-4000-000000000002', a + interval '5d 22h',     a + interval '6d 4h');
 end $$;
 
--- ── Scrims ──────────────────────────────────────────────────
--- 2 past (confirmed) + 3 upcoming confirmed + 2 upcoming proposed + 1 cancelled
+-- ── Demo scrims ────────────────────────────────────────────
 do $$
 declare
-  a  date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;   -- next Monday
-  pa date := date_trunc('week', CURRENT_DATE - interval '7 days')::date;   -- last Monday
+  a  date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;
+  pa date := date_trunc('week', CURRENT_DATE - interval '7 days')::date;
 begin
   insert into public.scrims (id, organizer_id, starts_at, status, created_at) values
-    -- Past scrims (last week)
     ('00000000-0000-0000-5000-000000000001', '00000000-0000-0000-1000-000000000001',
-     pa + interval '2d 18h', 'confirmed', pa + interval '0d 10h'),   -- last Wed 18:00 — Alpha vs Golf
+     pa + interval '2d 18h', 'confirmed', pa + interval '0d 10h'),
     ('00000000-0000-0000-5000-000000000002', '00000000-0000-0000-1000-000000000003',
-     pa + interval '5d 23h', 'confirmed', pa + interval '2d 14h'),   -- last Sat 23:00 — Charlie vs Hotel
-
-    -- Upcoming scrims (next week)
+     pa + interval '5d 23h', 'confirmed', pa + interval '2d 14h'),
     ('00000000-0000-0000-5000-000000000003', '00000000-0000-0000-1000-000000000001',
-     a + interval '2d 18h', 'confirmed', a - interval '2d'),         -- Wed 18:00 — Alpha vs Bravo
+     a + interval '2d 18h', 'confirmed', a - interval '2d'),
     ('00000000-0000-0000-5000-000000000004', '00000000-0000-0000-1000-000000000007',
-     a + interval '4d 19h', 'confirmed', a - interval '1d'),         -- Fri 19:00 — Golf vs Echo
+     a + interval '4d 19h', 'confirmed', a - interval '1d'),
     ('00000000-0000-0000-5000-000000000005', '00000000-0000-0000-1000-000000000003',
-     a + interval '5d 23h', 'confirmed', a - interval '1d'),         -- Sat 23:00 — Charlie vs Hotel
+     a + interval '5d 23h', 'confirmed', a - interval '1d'),
     ('00000000-0000-0000-5000-000000000006', '00000000-0000-0000-1000-000000000005',
-     a + interval '0d 20h', 'proposed',  a - interval '3d'),         -- Mon 20:00 — Alpha vs Echo
+     a + interval '0d 20h', 'proposed',  a - interval '3d'),
     ('00000000-0000-0000-5000-000000000007', '00000000-0000-0000-1000-000000000004',
-     a + interval '3d 3h',  'proposed',  a - interval '2d'),         -- Thu 03:00 — Delta vs India
+     a + interval '3d 3h',  'proposed',  a - interval '2d'),
     ('00000000-0000-0000-5000-000000000008', '00000000-0000-0000-1000-000000000010',
-     a + interval '5d 19h', 'cancelled', a - interval '4d')          -- Sat 19:00 — Juliet vs Golf (cancelled)
+     a + interval '5d 19h', 'cancelled', a - interval '4d')
   on conflict (id) do nothing;
 
   insert into public.scrim_teams (scrim_id, team_id) values
-    -- Past: Alpha vs Golf
     ('00000000-0000-0000-5000-000000000001', '00000000-0000-0000-3000-000000000001'),
     ('00000000-0000-0000-5000-000000000001', '00000000-0000-0000-3000-000000000007'),
-    -- Past: Charlie vs Hotel
     ('00000000-0000-0000-5000-000000000002', '00000000-0000-0000-3000-000000000003'),
     ('00000000-0000-0000-5000-000000000002', '00000000-0000-0000-3000-000000000008'),
-    -- Upcoming: Alpha vs Bravo
     ('00000000-0000-0000-5000-000000000003', '00000000-0000-0000-3000-000000000001'),
     ('00000000-0000-0000-5000-000000000003', '00000000-0000-0000-3000-000000000002'),
-    -- Upcoming: Golf vs Echo
     ('00000000-0000-0000-5000-000000000004', '00000000-0000-0000-3000-000000000007'),
     ('00000000-0000-0000-5000-000000000004', '00000000-0000-0000-3000-000000000005'),
-    -- Upcoming: Charlie vs Hotel
     ('00000000-0000-0000-5000-000000000005', '00000000-0000-0000-3000-000000000003'),
     ('00000000-0000-0000-5000-000000000005', '00000000-0000-0000-3000-000000000008'),
-    -- Upcoming: Alpha vs Echo (proposed)
     ('00000000-0000-0000-5000-000000000006', '00000000-0000-0000-3000-000000000001'),
     ('00000000-0000-0000-5000-000000000006', '00000000-0000-0000-3000-000000000005'),
-    -- Upcoming: Delta vs India (proposed)
     ('00000000-0000-0000-5000-000000000007', '00000000-0000-0000-3000-000000000004'),
     ('00000000-0000-0000-5000-000000000007', '00000000-0000-0000-3000-000000000009'),
-    -- Cancelled: Juliet vs Golf
     ('00000000-0000-0000-5000-000000000008', '00000000-0000-0000-3000-000000000010'),
     ('00000000-0000-0000-5000-000000000008', '00000000-0000-0000-3000-000000000007')
   on conflict do nothing;

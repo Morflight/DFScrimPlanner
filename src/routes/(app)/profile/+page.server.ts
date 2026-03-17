@@ -20,5 +20,23 @@ export const actions: Actions = {
 		if (error) return fail(500, { error: 'Failed to update username. Please try again.' });
 
 		return { success: true, username };
+	},
+
+	'update-week-start': async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		const data = await request.formData();
+		const value = data.get('week_starts_on') as string;
+
+		if (value !== 'monday' && value !== 'sunday')
+			return fail(400, { error: 'Invalid value.' });
+
+		const { error } = await supabase
+			.from('profiles')
+			.update({ week_starts_on: value })
+			.eq('id', user!.id);
+
+		if (error) return fail(500, { error: 'Failed to update preference.' });
+
+		return { weekStartUpdated: true };
 	}
 };

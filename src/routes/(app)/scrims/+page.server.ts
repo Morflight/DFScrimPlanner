@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { findTeamsForSlot } from '$lib/utils/slot-matching';
-import { slotsFromWindow } from '$lib/utils/timezone';
+import { slotsFromWindow, alignToWeekStart } from '$lib/utils/timezone';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSession } }) => {
@@ -14,10 +14,11 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSes
 	// Viewer timezone for grid
 	const { data: profile } = await supabase
 		.from('profiles')
-		.select('timezone')
+		.select('timezone, week_starts_on')
 		.eq('id', user!.id)
 		.single();
 	const viewerTz = profile?.timezone ?? 'UTC';
+	const weekStartDay = (profile?.week_starts_on ?? 'monday') as 'monday' | 'sunday';
 
 	const now = new Date();
 	const dateFmt = new Intl.DateTimeFormat('en-US', {
@@ -33,6 +34,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSes
 	const todayStart = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
 
 	// Auto-detect: if no explicit week param, jump to the first week with availability
+	const baseWeekStart = new Date(alignToWeekStart(`${ty}-${tm}-${td}`, weekStartDay) + 'T00:00:00Z');
 	if (!explicitWeek) {
 		const { data: nextAvail } = await supabaseAdmin
 			.from('availabilities')
@@ -44,16 +46,18 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSes
 
 		if (nextAvail) {
 			const earliestMs = new Date(nextAvail.starts_at).getTime();
-			const diffDays = Math.floor((earliestMs - todayStart.getTime()) / (24 * 3_600_000));
+			const diffDays = Math.floor((earliestMs - baseWeekStart.getTime()) / (24 * 3_600_000));
 			if (diffDays >= 7) {
 				weekOffset = Math.floor(diffDays / 7);
 			}
 		}
 	}
 
-	// Grid days: 7 days from today + week offset, in viewer's timezone
-	const start = new Date(todayStart);
-	start.setUTCDate(todayStart.getUTCDate() + weekOffset * 7);
+	// Grid days: 7 days from week start + offset, in viewer's timezone
+	const todayStr = `${ty}-${tm}-${td}`;
+	const weekStartStr = alignToWeekStart(todayStr, weekStartDay);
+	const start = new Date(weekStartStr + 'T00:00:00Z');
+	start.setUTCDate(start.getUTCDate() + weekOffset * 7);
 
 	const validDates = new Set<string>();
 	const gridDays = Array.from({ length: 7 }, (_, i) => {

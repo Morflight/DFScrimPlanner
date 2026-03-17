@@ -73,6 +73,7 @@ export type Database = {
           role: string
           timezone: string
           username: string
+          week_starts_on: string
         }
         Insert: {
           created_at?: string
@@ -80,6 +81,7 @@ export type Database = {
           role?: string
           timezone?: string
           username: string
+          week_starts_on?: string
         }
         Update: {
           created_at?: string
@@ -87,6 +89,7 @@ export type Database = {
           role?: string
           timezone?: string
           username?: string
+          week_starts_on?: string
         }
         Relationships: []
       }
@@ -234,7 +237,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: never; Returns: boolean }
+      is_scrim_organizer: { Args: { p_scrim_id: string }; Returns: boolean }
+      is_team_leader: { Args: { p_team_id: string }; Returns: boolean }
+      is_team_member_of: { Args: { p_team_id: string }; Returns: boolean }
+      is_teammate_of: { Args: { p_user_id: string }; Returns: boolean }
+      participates_in_scrim: { Args: { p_scrim_id: string }; Returns: boolean }
+      shares_team_with: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

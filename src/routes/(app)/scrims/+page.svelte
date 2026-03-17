@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import type { ActionData, PageData } from './$types';
 	import TeamScrimCalendar from '$lib/components/TeamScrimCalendar.svelte';
+	import WeekNav from '$lib/components/WeekNav.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -128,7 +129,7 @@
 	}
 </script>
 
-<div class="px-4 py-6 md:p-8 max-w-6xl space-y-6">
+<div class="px-4 py-6 md:p-8 space-y-6">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">Scrim Planner</h1>
 		<p class="text-sm text-muted-foreground mt-1">Schedule 3-hour scrims between teams.</p>
@@ -150,29 +151,7 @@
 	</div>
 
 	<!-- Week navigation -->
-	<div class="flex items-center gap-3">
-		<button
-			onclick={() => navigateWeek(-1)}
-			class="px-2 py-1 rounded border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-		>
-			&larr; Prev
-		</button>
-		<span class="text-sm font-medium min-w-[10rem] text-center">{weekLabel}</span>
-		<button
-			onclick={() => navigateWeek(1)}
-			class="px-2 py-1 rounded border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-		>
-			Next &rarr;
-		</button>
-		{#if (data.weekOffset ?? 0) !== 0}
-			<button
-				onclick={() => navigateWeek(-(data.weekOffset ?? 0))}
-				class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-			>
-				Today
-			</button>
-		{/if}
-	</div>
+	<WeekNav {weekLabel} weekOffset={data.weekOffset ?? 0} onnavigate={navigateWeek} />
 
 	{#if tab === 'time-first'}
 		<!-- ── PICK A TIME ─────────────────────────────────────────── -->

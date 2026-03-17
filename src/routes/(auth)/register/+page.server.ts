@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
+import { defaultWeekStart } from '$lib/utils/timezone';
 
 export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -41,9 +42,10 @@ export const actions: Actions = {
 		if (pwError) return fail(400, { error: pwError.message, username });
 
 		// Update profile
+		const week_starts_on = defaultWeekStart(timezone);
 		const { error: profileError } = await supabase
 			.from('profiles')
-			.update({ username, timezone })
+			.update({ username, timezone, week_starts_on })
 			.eq('id', user.id);
 
 		if (profileError) return fail(500, { error: profileError.message, username });

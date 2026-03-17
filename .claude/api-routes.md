@@ -13,6 +13,7 @@
 | GET | `/availability/[userId]` | yes | Load a teammate's profile + future availabilities; redirects to `/availability` if own userId, redirects to `/team` if not a teammate |
 | POST | `/availability/[userId]?/save` | yes | Replace a teammate's future availabilities; re-checks teammate relationship on every write; uses `supabaseAdmin` |
 | POST | `/profile?/update-username` | yes | Update own display username; max 32 chars; not unique |
+| POST | `/profile?/update-week-start` | yes | Update `week_starts_on` preference (`'monday'` or `'sunday'`) |
 
 ## Supabase Direct Calls (client-side)
 

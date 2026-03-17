@@ -1,10 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { supabaseAdmin } from '$lib/server/supabase';
-import { slotsFromWindow, weekStart } from '$lib/utils/timezone';
+import { slotsFromWindow, alignToWeekStart } from '$lib/utils/timezone';
 
-export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession } }) => {
+export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
+
+	const weekOffset = parseInt(url.searchParams.get('week') ?? '0', 10) || 0;
 
 	// Check if user leads a team
 	const { data: ledTeam } = await supabase
@@ -51,15 +53,16 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		}
 	}
 
-	// Fetch viewer's timezone
+	// Fetch viewer's timezone + week preference
 	const { data: profile } = await supabase
 		.from('profiles')
-		.select('timezone')
+		.select('timezone, week_starts_on')
 		.eq('id', user!.id)
 		.single();
 	const viewerTz = profile?.timezone ?? 'UTC';
+	const weekStartDay = (profile?.week_starts_on ?? 'monday') as 'monday' | 'sunday';
 
-	// Build grid days: 7 days starting from today in the viewer's timezone
+	// Build grid days: 7 days from week start + offset, in viewer's timezone
 	const now = new Date();
 	const dateFmt = new Intl.DateTimeFormat('en-US', {
 		timeZone: viewerTz,
@@ -71,7 +74,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 	const ty = todayParts.find((p) => p.type === 'year')?.value ?? '';
 	const tm = todayParts.find((p) => p.type === 'month')?.value ?? '';
 	const td = todayParts.find((p) => p.type === 'day')?.value ?? '';
-	const start = new Date(`${ty}-${tm}-${td}T00:00:00Z`);
+	const todayStr = `${ty}-${tm}-${td}`;
+	const weekStartStr = alignToWeekStart(todayStr, weekStartDay);
+	const start = new Date(weekStartStr + 'T00:00:00Z');
+	start.setUTCDate(start.getUTCDate() + weekOffset * 7);
 
 	const validDates = new Set<string>();
 	const gridDays = Array.from({ length: 7 }, (_, i) => {
@@ -134,7 +140,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		}
 	}
 
-	return { team, isLeader, members, pendingInvites, memberSlots, gridDays };
+	return { team, isLeader, members, pendingInvites, memberSlots, gridDays, weekOffset };
 };
 
 export const actions: Actions = {

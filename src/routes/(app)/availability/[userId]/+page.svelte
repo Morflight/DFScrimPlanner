@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import AvailabilityGrid from '$lib/components/AvailabilityGrid.svelte';
-	import { slotsFromWindow } from '$lib/utils/timezone';
+	import WeekNav from '$lib/components/WeekNav.svelte';
+	import { slotsFromWindow, alignToWeekStart } from '$lib/utils/timezone';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	const tz = $derived(data.targetProfile.timezone ?? 'UTC');
+	const weekStartsOn = $derived<'monday' | 'sunday'>((data as any).profile?.week_starts_on ?? 'monday');
 
 	let saving = $state(false);
 	let showConfirm = $state(false);
 	let confirmed = $state(false);
 	let saveForm = $state<HTMLFormElement | null>(null);
+	let weekOffset = $state(0);
 
 	// ── Day helpers ──────────────────────────────────────────────────────────
 
@@ -45,11 +48,17 @@
 
 	const days = $derived.by(() => {
 		const today = todayInTz(tz);
+		const start = addDays(alignToWeekStart(today, weekStartsOn), weekOffset * 7);
 		return Array.from({ length: 7 }, (_, i) => {
-			const dateStr = addDays(today, i);
+			const dateStr = addDays(start, i);
 			const { label, sub } = formatDayHeader(dateStr);
 			return { dateStr, label, sub };
 		});
+	});
+
+	const weekLabel = $derived.by(() => {
+		if (days.length === 0) return '';
+		return `${days[0].sub} – ${days[days.length - 1].sub}`;
 	});
 
 	const validDates = $derived(new Set(days.map((d) => d.dateStr)));
@@ -117,7 +126,7 @@
 	}
 </script>
 
-<div class="p-6 max-w-5xl space-y-4">
+<div class="px-4 py-4 md:p-6 space-y-4">
 	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div>
@@ -141,6 +150,9 @@
 			{data.targetProfile.username}'s availability saved.
 		</p>
 	{/if}
+
+	<!-- Week navigation -->
+	<WeekNav {weekLabel} {weekOffset} onnavigate={(delta) => (weekOffset += delta)} />
 
 	<!-- Calendar grid -->
 	<AvailabilityGrid {days} {selectedSlots} onchange={(slots) => (selectedSlots = slots)} />

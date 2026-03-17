@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sun, Moon, User, Globe, Shield } from 'lucide-svelte';
+	import { Sun, Moon, User, Globe, Shield, Calendar } from 'lucide-svelte';
 	import { enhance } from '$app/forms';
 	import { theme } from '$lib/stores/theme';
 	import type { ActionData, PageData } from './$types';
@@ -34,6 +34,8 @@
 	const role = $derived<string>(profile?.role ?? 'player');
 	const roleClass = $derived(roleColors[role] ?? roleColors.player);
 	const initial = $derived((profile?.username ?? user?.email ?? '?')[0].toUpperCase());
+	const weekStartsOn = $derived<string>(profile?.week_starts_on ?? 'monday');
+	let savingWeekStart = $state(false);
 </script>
 
 <div class="px-4 py-6 md:p-8 max-w-2xl">
@@ -132,6 +134,77 @@
 				<div>
 					<p class="text-xs text-muted-foreground">Role</p>
 					<p class="text-sm font-medium capitalize">{role}</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Calendar card -->
+	<section class="rounded-xl border border-border bg-card mb-6">
+		<div class="px-6 py-4 border-b border-border">
+			<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+				Calendar
+			</h2>
+		</div>
+		<div class="px-6 py-5">
+			<div class="flex items-center justify-between gap-6">
+				<div class="flex items-center gap-3">
+					<Calendar size={15} class="text-muted-foreground shrink-0" />
+					<div>
+						<p class="text-sm font-medium">Week starts on</p>
+						<p class="text-xs text-muted-foreground mt-0.5">
+							{weekStartsOn === 'sunday' ? 'Sunday — common in North America.' : 'Monday — common in Europe and most of the world.'}
+						</p>
+					</div>
+				</div>
+
+				<div class="flex rounded-lg border border-border overflow-hidden shrink-0">
+					<form
+						method="POST"
+						action="?/update-week-start"
+						use:enhance={() => {
+							savingWeekStart = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								savingWeekStart = false;
+							};
+						}}
+					>
+						<input type="hidden" name="week_starts_on" value="monday" />
+						<button
+							type="submit"
+							disabled={savingWeekStart}
+							class="px-3 py-1.5 text-xs font-medium transition-colors
+								{weekStartsOn === 'monday'
+								? 'bg-primary text-primary-foreground'
+								: 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
+						>
+							Mon
+						</button>
+					</form>
+					<form
+						method="POST"
+						action="?/update-week-start"
+						use:enhance={() => {
+							savingWeekStart = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								savingWeekStart = false;
+							};
+						}}
+					>
+						<input type="hidden" name="week_starts_on" value="sunday" />
+						<button
+							type="submit"
+							disabled={savingWeekStart}
+							class="px-3 py-1.5 text-xs font-medium transition-colors
+								{weekStartsOn === 'sunday'
+								? 'bg-primary text-primary-foreground'
+								: 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
+						>
+							Sun
+						</button>
+					</form>
 				</div>
 			</div>
 		</div>

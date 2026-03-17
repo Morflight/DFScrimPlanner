@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import type { ActionData, PageData } from './$types';
 	import TeamAvailabilityGrid from '$lib/components/TeamAvailabilityGrid.svelte';
+	import WeekNav from '$lib/components/WeekNav.svelte';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let creatingTeam = $state(false);
@@ -12,9 +14,22 @@
 	const gridMembers = $derived(
 		(data.memberSlots ?? []).map((m) => ({ ...m, slotSet: new Set(m.slots) }))
 	);
+
+	function navigateWeek(delta: number) {
+		const next = (data.weekOffset ?? 0) + delta;
+		const params = new URLSearchParams();
+		if (next !== 0) params.set('week', String(next));
+		goto(`?${params.toString()}`, { invalidateAll: true });
+	}
+
+	const weekLabel = $derived.by(() => {
+		const days = data.gridDays;
+		if (!days || days.length === 0) return '';
+		return `${days[0].sub} – ${days[days.length - 1].sub}`;
+	});
 </script>
 
-<div class="px-4 py-6 md:p-8 max-w-3xl space-y-8">
+<div class="px-4 py-6 md:p-8 space-y-8">
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight">My Team</h1>
 	</div>
@@ -174,6 +189,7 @@
 			{#if data.members.length < 2}
 				<p class="text-sm text-muted-foreground">Add at least two active members to see team availability.</p>
 			{:else}
+				<WeekNav {weekLabel} weekOffset={data.weekOffset ?? 0} onnavigate={navigateWeek} />
 				<TeamAvailabilityGrid days={data.gridDays} members={gridMembers} />
 			{/if}
 		</section>

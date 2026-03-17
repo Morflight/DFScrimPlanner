@@ -11,6 +11,7 @@ Extends Supabase auth.users. Created automatically on user sign-up via trigger.
 | `username` | `text` | no | — | Display name |
 | `timezone` | `text` | no | `'UTC'` | IANA timezone string |
 | `role` | `text` | no | `'player'` | `'admin'`, `'leader'`, `'player'`, `'filler'` — admin > leader > player/filler |
+| `week_starts_on` | `text` | no | `'monday'` | `'monday'` or `'sunday'` — controls calendar first day; auto-set from timezone on registration |
 | `created_at` | `timestamptz` | no | `now()` | — |
 
 ### `teams`
@@ -129,3 +130,5 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260316000001_team_member_edit_availability.sql` | `is_teammate_of()` SECURITY DEFINER (covers leader↔member); "Teammates can edit each other's availability" RLS policy on availabilities |
 | `20260316000002_member_leave_team.sql` | Add `DELETE` policy on `team_members` for own rows — was missing, causing leave-team to silently fail |
 | `20260316000003_teammate_profile_read.sql` | Add SELECT policy on `profiles` for teammates — was missing, causing roster username join to return null |
+| `20260317000001_expanded_demo_data.sql` | Replace 6-team demo data with 10 teams, 42 users, 8 scrims, NA↔EU crossover availability |
+| `20260317000002_week_starts_on.sql` | Add `week_starts_on` column to profiles; set `'sunday'` for `America/*` timezones |

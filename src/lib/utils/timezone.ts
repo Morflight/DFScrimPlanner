@@ -73,6 +73,32 @@ export function overlapHours(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date)
 }
 
 /**
+ * Given a date string (YYYY-MM-DD), return the start of the week
+ * aligned to the given start day ('monday' or 'sunday').
+ */
+export function alignToWeekStart(
+	dateStr: string,
+	startDay: 'monday' | 'sunday' = 'monday'
+): string {
+	const date = new Date(dateStr + 'T12:00:00Z');
+	const dow = date.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
+	const target = startDay === 'sunday' ? 0 : 1;
+	let diff = dow - target;
+	if (diff < 0) diff += 7;
+	const aligned = new Date(date);
+	aligned.setUTCDate(aligned.getUTCDate() - diff);
+	return aligned.toISOString().slice(0, 10);
+}
+
+/**
+ * Return the default week start day based on timezone.
+ * America/* → 'sunday', everything else → 'monday'.
+ */
+export function defaultWeekStart(tz: string): 'monday' | 'sunday' {
+	return tz.startsWith('America/') ? 'sunday' : 'monday';
+}
+
+/**
  * Given a UTC availability window, return all 30-min slot keys (in the given IANA timezone)
  * that fall within the window, filtered to the provided set of valid date strings (YYYY-MM-DD).
  * Slot key format: "YYYY-MM-DDTHH:MM"
