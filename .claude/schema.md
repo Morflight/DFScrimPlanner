@@ -111,11 +111,11 @@ Available helper functions (all `SECURITY DEFINER`):
 |----------|--------|
 | `public.is_admin()` | caller is admin |
 | `public.is_team_leader(team_id)` | caller is leader of team |
-| `public.is_team_member_of(team_id)` | caller is member of team |
+| `public.is_team_member_of(team_id)` | caller is member OR leader of team |
 | `public.shares_team_with(user_id)` | caller shares any team with user (checks team_members only) |
 | `public.is_teammate_of(user_id)` | caller shares a team with user — covers all roles: member↔member, leader→member, member→leader |
 | `public.is_scrim_organizer(scrim_id)` | caller is organizer of scrim |
-| `public.participates_in_scrim(scrim_id)` | caller is in any team of scrim |
+| `public.participates_in_scrim(scrim_id)` | caller is in any team of scrim (member or leader) |
 
 ## Migrations
 
@@ -133,3 +133,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260317000001_expanded_demo_data.sql` | Replace 6-team demo data with 10 teams, 42 users, 8 scrims, NA↔EU crossover availability |
 | `20260317000002_week_starts_on.sql` | Add `week_starts_on` column to profiles; set `'sunday'` for `America/*` timezones |
 | `20260317000003_25_teams_demo_data.sql` | Replace 10-team demo data with 25 teams (EU/NA/APAC/Crossover), 112 users, 12 fillers, 12 scrims; procedural availability generation |
+| `20260317000004_fix_leader_visibility.sql` | Fix `is_team_member_of()` and `participates_in_scrim()` to also check `teams.leader_id` — leaders weren't in `team_members`, so they couldn't see scrims/scrim_teams for their own team |
