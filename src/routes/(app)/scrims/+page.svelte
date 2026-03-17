@@ -112,12 +112,16 @@
 		(data.myTeamMembers ?? []).map((m) => ({ ...m, slotSet: new Set(m.slots) }))
 	);
 
-	// Teams visible in the pick-teams grid (those selected as chips)
-	const ptGridTeams = $derived(
-		(data.teamSlotData ?? [])
+	// Teams visible in the pick-teams grid: own team always first, then selected opponents
+	const ptGridTeams = $derived.by(() => {
+		const own = data.myTeamSlotData
+			? [{ ...data.myTeamSlotData, slotSet: new Set(data.myTeamSlotData.slots) }]
+			: [];
+		const opponents = (data.teamSlotData ?? [])
 			.filter((t) => ptTeams.includes(t.id))
-			.map((t) => ({ ...t, slotSet: new Set(t.slots) }))
-	);
+			.map((t) => ({ ...t, slotSet: new Set(t.slots) }));
+		return [...own, ...opponents];
+	});
 
 	function togglePtTeam(id: string) {
 		if (ptTeams.includes(id)) {
@@ -355,7 +359,7 @@
 			<!-- Team chips -->
 			<div class="space-y-2">
 				<div class="flex items-baseline gap-3">
-					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Teams</h3>
+					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Opponent teams</h3>
 					<span class="text-xs text-muted-foreground">{ptTeams.length}/5 selected</span>
 				</div>
 				<div class="flex flex-wrap gap-2">
@@ -378,8 +382,8 @@
 				</div>
 			</div>
 
-			<!-- Calendar (only when teams selected) -->
-			{#if ptTeams.length > 0}
+			<!-- Calendar (always visible when viewer has a team) -->
+			{#if ptGridTeams.length > 0}
 				<TeamScrimCalendar
 					days={data.gridDays}
 					teams={ptGridTeams}
@@ -423,6 +427,10 @@
 						<span class="text-xs text-muted-foreground">Select {5 - ptTeams.length} more team{5 - ptTeams.length !== 1 ? 's' : ''}</span>
 					{/if}
 				</div>
+			{:else}
+				<p class="text-sm text-amber-500 bg-amber-500/10 px-3 py-2 rounded-md">
+					You need to be part of a team to use this view.
+				</p>
 			{/if}
 
 			{#if (form as any)?.scrimCreated}

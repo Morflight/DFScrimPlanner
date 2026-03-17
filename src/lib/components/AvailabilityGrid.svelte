@@ -5,18 +5,22 @@
 		return `${String(h).padStart(2, '0')}:${m}`;
 	});
 
+	const SCRIM_STRIPE = 'repeating-linear-gradient(-45deg, rgba(251,146,60,0.15), rgba(251,146,60,0.15) 2px, rgba(251,146,60,0.38) 2px, rgba(251,146,60,0.38) 4px)';
+
 	type Day = { dateStr: string; label: string; sub: string };
 
 	let {
 		days,
 		selectedSlots,
 		onchange,
-		readonly = false
+		readonly = false,
+		scrimSlots = new Set<string>()
 	}: {
 		days: Day[];
 		selectedSlots: Set<string>;
 		onchange: (slots: Set<string>) => void;
 		readonly?: boolean;
+		scrimSlots?: Set<string>;
 	} = $props();
 
 	let isDragging = $state(false);
@@ -27,7 +31,7 @@
 	}
 
 	function onMouseDown(k: string, e: MouseEvent) {
-		if (readonly) return;
+		if (readonly || scrimSlots.has(k)) return;
 		e.preventDefault();
 		isDragging = true;
 		dragMode = selectedSlots.has(k) ? 'deselect' : 'select';
@@ -35,7 +39,7 @@
 	}
 
 	function onMouseEnter(k: string) {
-		if (readonly || !isDragging) return;
+		if (readonly || !isDragging || scrimSlots.has(k)) return;
 		applySlot(k);
 	}
 
@@ -48,14 +52,16 @@
 
 	// For each selected slot, compute whether it belongs to a contiguous run ≥ 6 slots (3h).
 	// 'scrim' = run is long enough to hold a scrim; 'short' = too short.
+	// Scrim-locked slots break contiguous runs (they eat into available time).
 	const slotTypes = $derived.by(() => {
 		const result = new Map<string, 'scrim' | 'short'>();
 
 		for (const day of days) {
-			// Collect indices of selected slots for this day, in order
+			// Collect indices of selected slots that are NOT consumed by a scrim
 			const selected: number[] = [];
 			for (let i = 0; i < SLOTS.length; i++) {
-				if (selectedSlots.has(slotKey(day.dateStr, SLOTS[i]))) selected.push(i);
+				const k = slotKey(day.dateStr, SLOTS[i]);
+				if (selectedSlots.has(k) && !scrimSlots.has(k)) selected.push(i);
 			}
 
 			// Walk contiguous runs (consecutive slot indices)
@@ -75,6 +81,17 @@
 	});
 
 	function cellClass(k: string, isHour: boolean, isLastDay: boolean): string {
+		// Scrim-locked slots get their own style (background applied via inline style)
+		if (scrimSlots.has(k)) {
+			return [
+				'border-b border-r border-border cursor-default transition-colors duration-75',
+				isHour ? 'border-l' : '',
+				isLastDay ? 'border-b-0' : ''
+			]
+				.filter(Boolean)
+				.join(' ');
+		}
+
 		const type = slotTypes.get(k);
 		let bg: string;
 		if (readonly) {
@@ -99,6 +116,19 @@
 </script>
 
 <svelte:window onmouseup={() => (isDragging = false)} />
+
+<!-- Legend (only when scrims exist) -->
+{#if scrimSlots.size > 0}
+	<div class="flex flex-wrap items-center gap-x-5 gap-y-1 mb-2 text-xs text-muted-foreground">
+		<div class="flex items-center gap-1.5">
+			<span
+				class="inline-block w-4 h-3 rounded-sm border border-amber-500/30"
+				style="background: {SCRIM_STRIPE};"
+			></span>
+			<span>Scheduled scrim</span>
+		</div>
+	</div>
+{/if}
 
 <div class="overflow-x-auto rounded-md border border-border p-1">
 	<table
@@ -142,7 +172,7 @@
 						{@const k = slotKey(day.dateStr, time)}
 						<td
 							class={cellClass(k, isHour, di === days.length - 1)}
-							style="height: 2rem;"
+							style="height: 2rem;{scrimSlots.has(k) ? ` background: ${SCRIM_STRIPE};` : ''}"
 							onmousedown={(e) => onMouseDown(k, e)}
 							onmouseenter={() => onMouseEnter(k)}
 						></td>

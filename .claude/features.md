@@ -20,7 +20,8 @@ DFScrimPlanner helps Delta Force teams coordinate 3-hour practice scrims. Team l
 | Filler registration | Solo players can register without joining a team, visible to leaders as available fillers | done |
 | Filler search | Leaders can search for fillers available on a given date/time range | done |
 | Time-first scrim planner | Organizer picks a time slot → app shows which teams are available | done |
-| Teams-first scrim planner | Organizer picks two teams → app shows their common available slots | done |
+| Teams-first scrim planner | Organizer picks opponent teams; own team always visible on calendar; overlap shown with opponents | done |
+| Scrim-aware availability | Existing non-cancelled scrims subtract from team availability on planner and show as amber stripes on availability grid | done |
 | Availability grid UI | Clean shadcn-based visual grid showing team/player availability at a glance | done |
 | Timezone support | Each user stores their timezone; all comparisons done in UTC, display in local time | done |
 | Week start preference | Calendars start on Monday (EU/APAC default) or Sunday (NA default); toggle in profile | done |

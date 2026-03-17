@@ -145,36 +145,52 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSes
 		}
 	}
 
-	// Per-team aggregate slot data (for Pick Teams tab) — only meaningful if viewer has a team
-	const teamSlotData = myTeamId === null ? [] : (teamsWithMembers ?? []).filter((t: any) => t.id !== myTeamId).map((team: any) => {
-		const memberIds: string[] = [
-			team.leader_id as string,
-			...(team.team_members ?? [])
-				.filter((m: any) => m.status === 'active' && m.user_id && m.user_id !== team.leader_id)
-				.map((m: any) => m.user_id as string)
-		].filter(Boolean);
+	// Helper: compute aggregate team slots (union of all members' availability)
+	function computeTeamSlots(memberIds: string[]): string[] {
 		const teamSlots = new Set<string>();
 		for (const uid of memberIds) {
 			const s = slotsByUser.get(uid);
 			if (s) for (const k of s) teamSlots.add(k);
 		}
-		return { id: team.id as string, name: team.name as string, slots: Array.from(teamSlots) };
-	});
+		return Array.from(teamSlots);
+	}
+
+	function getTeamMemberIds(team: any): string[] {
+		return [
+			team.leader_id as string,
+			...(team.team_members ?? [])
+				.filter((m: any) => m.status === 'active' && m.user_id && m.user_id !== team.leader_id)
+				.map((m: any) => m.user_id as string)
+		].filter(Boolean);
+	}
+
+	// Per-team aggregate slot data (for Pick Teams tab) — excludes viewer's team
+	const teamSlotData = myTeamId === null ? [] : (teamsWithMembers ?? [])
+		.filter((t: any) => t.id !== myTeamId)
+		.map((team: any) => ({
+			id: team.id as string,
+			name: team.name as string,
+			slots: computeTeamSlots(getTeamMemberIds(team))
+		}));
+
+	// Viewer's own team aggregate slot data (for Pick Teams calendar — always visible)
+	let myTeamSlotData: { id: string; name: string; slots: string[] } | null = null;
+	if (myTeamId) {
+		const myTeam = (teamsWithMembers ?? []).find((t: any) => t.id === myTeamId);
+		if (myTeam) {
+			myTeamSlotData = {
+				id: myTeam.id as string,
+				name: myTeam.name as string,
+				slots: computeTeamSlots(getTeamMemberIds(myTeam))
+			};
+		}
+	}
 
 	// Per-member slot data for viewer's own team (for time-first calendar)
 	let myTeamMembers: { id: string; name: string; slots: string[] }[] = [];
 	if (myTeamId) {
 		const myTeamData = (teamsWithMembers ?? []).find((t: any) => t.id === myTeamId);
-		const myMemberIds: string[] = myTeamData
-			? [
-					myTeamLeaderId as string,
-					...(myTeamData.team_members ?? [])
-						.filter(
-							(m: any) => m.status === 'active' && m.user_id && m.user_id !== myTeamLeaderId
-						)
-						.map((m: any) => m.user_id as string)
-				].filter(Boolean)
-			: [];
+		const myMemberIds: string[] = myTeamData ? getTeamMemberIds(myTeamData) : [];
 
 		if (myMemberIds.length > 0) {
 			const { data: memberProfiles } = await supabaseAdmin
@@ -187,12 +203,12 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, safeGetSes
 			myTeamMembers = myMemberIds.map((uid) => ({
 				id: uid,
 				name: profileMap.get(uid) ?? uid,
-				slots: Array.from(slotsByUser.get(uid) ?? new Set())
+				slots: Array.from(slotsByUser.get(uid) ?? new Set<string>())
 			}));
 		}
 	}
 
-	return { teamSlotData, myTeamMembers, gridDays, viewerTz, weekOffset };
+	return { teamSlotData, myTeamSlotData, myTeamMembers, gridDays, viewerTz, weekOffset };
 };
 
 export const actions: Actions = {

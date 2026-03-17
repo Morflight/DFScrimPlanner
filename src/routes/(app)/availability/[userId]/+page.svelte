@@ -73,6 +73,17 @@
 		return slots;
 	});
 
+	const scrimSlots = $derived.by(() => {
+		const slots = new Set<string>();
+		for (const scrim of data.scrims ?? []) {
+			const endIso = new Date(new Date(scrim.starts_at).getTime() + 3 * 3_600_000).toISOString();
+			for (const k of slotsFromWindow(scrim.starts_at, endIso, tz, validDates)) {
+				slots.add(k);
+			}
+		}
+		return slots;
+	});
+
 	let selectedSlots = $state(new Set<string>());
 
 	$effect(() => {
@@ -155,7 +166,7 @@
 	<WeekNav {weekLabel} {weekOffset} onnavigate={(delta) => (weekOffset += delta)} />
 
 	<!-- Calendar grid -->
-	<AvailabilityGrid {days} {selectedSlots} onchange={(slots) => (selectedSlots = slots)} />
+	<AvailabilityGrid {days} {selectedSlots} {scrimSlots} onchange={(slots) => (selectedSlots = slots)} />
 
 	<!-- Save -->
 	<form

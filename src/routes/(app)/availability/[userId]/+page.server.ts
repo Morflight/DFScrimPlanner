@@ -62,9 +62,41 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession } 
 		.gte('ends_at', new Date().toISOString())
 		.order('starts_at');
 
+	// Find target user's team for scrim lookup
+	const { data: targetLedTeam } = await supabaseAdmin
+		.from('teams')
+		.select('id')
+		.eq('leader_id', targetUserId)
+		.limit(1)
+		.maybeSingle();
+	let targetTeamId: string | null = targetLedTeam?.id ?? null;
+	if (!targetTeamId) {
+		const { data: targetMem } = await supabaseAdmin
+			.from('team_members')
+			.select('team_id')
+			.eq('user_id', targetUserId)
+			.eq('status', 'active')
+			.limit(1)
+			.maybeSingle();
+		targetTeamId = targetMem?.team_id ?? null;
+	}
+
+	// Fetch non-cancelled scrims for target's team
+	let scrims: { starts_at: string }[] = [];
+	if (targetTeamId) {
+		const { data: scrimData } = await supabaseAdmin
+			.from('scrims')
+			.select('starts_at, scrim_teams!inner(team_id)')
+			.eq('scrim_teams.team_id', targetTeamId)
+			.eq('status', 'confirmed')
+			.gte('starts_at', new Date(Date.now() - 3 * 3_600_000).toISOString());
+		scrims = (scrimData ?? []).map((s) => ({ starts_at: s.starts_at }));
+	}
+
 	return {
 		targetProfile,
-		availabilities: availabilities ?? []
+		availabilities: availabilities ?? [],
+		scrims
 	};
 };
 

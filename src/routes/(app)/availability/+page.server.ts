@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { supabaseAdmin } from '$lib/server/supabase';
 
 export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -11,7 +12,38 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.gte('ends_at', new Date().toISOString())
 		.order('starts_at');
 
-	return { availabilities: availabilities ?? [] };
+	// Find user's team (leader or active member)
+	const { data: ledTeam } = await supabase
+		.from('teams')
+		.select('id')
+		.eq('leader_id', user!.id)
+		.limit(1)
+		.maybeSingle();
+	let myTeamId: string | null = ledTeam?.id ?? null;
+	if (!myTeamId) {
+		const { data: membership } = await supabase
+			.from('team_members')
+			.select('team_id')
+			.eq('user_id', user!.id)
+			.eq('status', 'active')
+			.limit(1)
+			.maybeSingle();
+		myTeamId = membership?.team_id ?? null;
+	}
+
+	// Fetch non-cancelled scrims for user's team
+	let scrims: { starts_at: string }[] = [];
+	if (myTeamId) {
+		const { data } = await supabaseAdmin
+			.from('scrims')
+			.select('starts_at, scrim_teams!inner(team_id)')
+			.eq('scrim_teams.team_id', myTeamId)
+			.eq('status', 'confirmed')
+			.gte('starts_at', new Date(Date.now() - 3 * 3_600_000).toISOString());
+		scrims = (data ?? []).map((s) => ({ starts_at: s.starts_at }));
+	}
+
+	return { availabilities: availabilities ?? [], scrims };
 };
 
 export const actions: Actions = {
