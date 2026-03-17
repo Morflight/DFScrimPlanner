@@ -132,3 +132,4 @@ Available helper functions (all `SECURITY DEFINER`):
 | `20260316000003_teammate_profile_read.sql` | Add SELECT policy on `profiles` for teammates — was missing, causing roster username join to return null |
 | `20260317000001_expanded_demo_data.sql` | Replace 6-team demo data with 10 teams, 42 users, 8 scrims, NA↔EU crossover availability |
 | `20260317000002_week_starts_on.sql` | Add `week_starts_on` column to profiles; set `'sunday'` for `America/*` timezones |
+| `20260317000003_25_teams_demo_data.sql` | Replace 10-team demo data with 25 teams (EU/NA/APAC/Crossover), 112 users, 12 fillers, 12 scrims; procedural availability generation |

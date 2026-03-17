@@ -1,7 +1,10 @@
 -- ============================================================
--- Dev seed data — expanded demo accounts
+-- Expanded demo data: 25 teams, 112 players, 12 scrims
 --
--- Admin:   admin@dev.local  / admin1234
+-- Replaces the previous 10-team demo data.
+-- Deletes all demo-* users and related data, then re-inserts.
+--
+-- Admin:   admin@dev.local  / admin1234   (unchanged)
 -- Leaders: demo-<team>-lead@dev.local     / test1234
 -- Players: demo-<team>-<role>@dev.local   / test1234
 -- Fillers: demo-filler-<n>@dev.local      / test1234
@@ -11,9 +14,6 @@
 -- 5 availability windows per player (procedurally generated)
 -- 12 scrims (3 past confirmed, 5 upcoming confirmed,
 --            3 proposed, 1 cancelled)
---
--- Anchor = Monday of the week after seed date
--- Past anchor = Monday of the week before seed date
 --
 -- Teams by region:
 --   EU (8):        Alpha Wolves, Bravo Hawks, Golf Titans,
@@ -25,74 +25,36 @@
 --                  Uniform Cobras, Victor Blades
 --   Crossover (3): Echo Storm, Juliet Specters, Whiskey Shadows
 --   APAC (3):      Foxtrot Vipers, X-ray Dragons, Yankee Ronin
---
--- Key availability windows (UTC):
---   EU evening:      16:30–22:30
---   NA East evening: 23:00–04:00
---   NA West evening: 02:00–07:00
---   Crossover:       19:00–01:00 (EU late + NA East afternoon)
---   APAC:            08:00–14:00
 -- ============================================================
 
--- ── Admin account ────────────────────────────────────────────
-do $$
-declare
-  v_user_id uuid := '00000000-0000-0000-0000-000000000001';
-  v_email   text := 'admin@dev.local';
-begin
-  insert into auth.users (
-    id, instance_id, aud, role,
-    email, encrypted_password, email_confirmed_at,
-    confirmation_token, recovery_token, email_change_token_new,
-    email_change, email_change_token_current,
-    raw_app_meta_data, raw_user_meta_data,
-    is_super_admin, is_sso_user, is_anonymous,
-    created_at, updated_at
-  ) values (
-    v_user_id,
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated',
-    v_email,
-    extensions.crypt('admin1234', extensions.gen_salt('bf', 10)),
-    now(),
-    '', '', '', '', '',
-    '{"provider": "email", "providers": ["email"]}'::jsonb,
-    '{"username": "DevAdmin", "role": "admin"}'::jsonb,
-    false, false, false,
-    now(), now()
-  ) on conflict (id) do nothing;
-
-  insert into auth.identities (
-    user_id, provider_id, provider, identity_data,
-    last_sign_in_at, created_at, updated_at
-  ) values (
-    v_user_id, v_email, 'email',
-    jsonb_build_object('sub', v_user_id::text, 'email', v_email),
-    now(), now(), now()
-  ) on conflict (provider_id, provider) do nothing;
-end $$;
-
--- ── Clean up demo data from migrations ───────────────────────
+-- ── Clean up old demo data ─────────────────────────────────
 delete from public.scrim_teams
 where scrim_id in (
   select id from public.scrims
   where organizer_id in (select id from auth.users where email like 'demo-%@dev.local')
 );
+
 delete from public.scrims
 where organizer_id in (select id from auth.users where email like 'demo-%@dev.local');
+
 delete from public.availabilities
 where user_id in (select id from auth.users where email like 'demo-%@dev.local');
+
 delete from public.team_members
 where team_id in (
   select id from public.teams
   where leader_id in (select id from auth.users where email like 'demo-%@dev.local')
 );
+
 delete from public.teams
 where leader_id in (select id from auth.users where email like 'demo-%@dev.local');
+
 delete from public.profiles
 where id in (select id from auth.users where email like 'demo-%@dev.local');
+
 delete from auth.identities
 where user_id in (select id from auth.users where email like 'demo-%@dev.local');
+
 delete from auth.users
 where email like 'demo-%@dev.local';
 
@@ -100,9 +62,9 @@ where email like 'demo-%@dev.local';
 create or replace function pg_temp.gen_avail(
   p_uid uuid,
   p_anchor date,
-  p_start_min int,
-  p_end_min int,
-  p_idx int
+  p_start_min int,   -- minutes from midnight UTC (e.g. 990 = 16:30)
+  p_end_min int,     -- can exceed 1440 for cross-midnight (e.g. 1680 = 28h = 04:00 next day)
+  p_idx int          -- user index for deterministic per-user variation
 ) returns void language plpgsql as $fn$
 declare
   d int;
@@ -129,7 +91,7 @@ begin
 end;
 $fn$;
 
--- ── Demo players (25 leaders + 75 players + 12 fillers) ──────
+-- ── Insert 112 demo users + teams + members + availability ──
 do $$
 declare
   team_codes text[] := array[
@@ -149,17 +111,20 @@ declare
     'Demo Victor Blades',   'Demo Whiskey Shadows',  'Demo X-ray Dragons',
     'Demo Yankee Ronin'
   ];
+  -- Region codes: 1=EU, 2=NA East, 3=NA West, 4=Crossover, 5=APAC
   team_regions int[] := array[
     1, 1, 2, 3, 4, 5, 1, 2, 3, 4,
     1, 1, 1, 1, 1, 2, 2, 2, 2, 3,
     3, 3, 4, 5, 5
   ];
+  -- Availability windows per region (minutes from midnight UTC)
   region_start int[] := array[990, 1380, 120, 1140, 480];
   region_end   int[] := array[1350, 1680, 420, 1500, 840];
 
   role_suffixes text[] := array['rifle','sniper','support'];
   tok_suffixes  text[] := array['r','s','u'];
 
+  -- Usernames: 25 leaders + 75 players + 12 fillers = 112
   usernames text[] := array[
     -- Leaders (25)
     'demo-AlphaWolf',     'demo-HawkEye',       'demo-FoxHound',
@@ -228,6 +193,7 @@ declare
     'demo-EuroSub',      'demo-MapleGhost',     'demo-TigerSub'
   ];
 
+  -- Timezones: 25 leaders + 75 players + 12 fillers = 112
   timezones text[] := array[
     -- Leaders (25)
     'Europe/Paris',          'Europe/Warsaw',         'America/New_York',
@@ -296,6 +262,7 @@ declare
     'Europe/Warsaw',         'America/Toronto',       'Asia/Singapore'
   ];
 
+  -- Filler region codes (for availability)
   filler_regions int[] := array[1, 2, 1, 3, 5, 2, 1, 3, 5, 1, 2, 5];
 
   uid uuid;
@@ -306,7 +273,6 @@ declare
   region int;
   a date := date_trunc('week', CURRENT_DATE + interval '7 days')::date;
   i int;
-  j int;
 begin
   -- ── Insert 112 auth users ──────────────────────────────────
   for i in 1..112 loop
