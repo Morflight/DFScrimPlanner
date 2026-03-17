@@ -29,7 +29,7 @@ deploy:
 	git push origin master
 
 types:
-	$(SUPABASE) gen types typescript --local > src/lib/types/database.ts
+	$(SUPABASE) gen types typescript --local > app/src/lib/types/database.ts
 
 migration:
 	$(SUPABASE) migration new $(name)

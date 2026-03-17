@@ -38,7 +38,7 @@ App (dev): https://dfscrimplanner.local.com
 ### Routing (SvelteKit)
 
 ```
-src/routes/
+app/src/routes/
   (auth)/               # Unauthenticated: login, register (invite), accept-invite
   (app)/                # Authenticated
     dashboard/          # Overview: upcoming scrims, team status
@@ -51,7 +51,7 @@ src/routes/
 ### Lib Structure (feature-first)
 
 ```
-src/lib/
+app/src/lib/
   features/
     auth/               # Invite-based registration, session helpers
     availability/       # Availability grid logic, timezone conversion
