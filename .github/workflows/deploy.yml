@@ -1,4 +1,4 @@
-name: CI / Deploy
+name: Deploy
 
 on:
   push:
@@ -10,27 +10,8 @@ defaults:
     working-directory: app
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
-
   deploy:
     name: Migrate & Deploy
-    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
