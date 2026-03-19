@@ -2,7 +2,8 @@ name: CI / Deploy
 
 on:
   push:
-    branches: [main, master]
+    tags:
+      - 'v*.*.*'
 
 defaults:
   run:
