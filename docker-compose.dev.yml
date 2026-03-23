@@ -31,7 +31,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # CLI talks to host Docker daemon
       - ./app:/app
-    network_mode: host  # supabase containers bind to host ports (54321, 54323, etc.)
+    network_mode: host  # supabase containers bind to host ports (54421, 54423, etc.)
 
 networks:
   reverse-proxy:

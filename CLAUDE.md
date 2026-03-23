@@ -30,7 +30,7 @@ make migrate      # Apply pending migrations WITHOUT wiping data (use this norma
 make db-reset     # Reset DB: wipes all data, re-applies all migrations + seed
 ```
 
-Supabase Studio (dev): http://localhost:54323
+Supabase Studio (dev): http://localhost:54423
 App (dev): https://dfscrimplanner.local.com
 
 ## Architecture
