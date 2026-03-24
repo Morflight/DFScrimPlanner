@@ -42,3 +42,15 @@ Both plans require validation before execution starts.
   - `auth-flows.md` — if auth or invite flows changed
   - `codebase.md` — if new features, components, or server utilities were added
 - Use `prompts/` templates as specs input when starting a skill
+
+## Backlog Integration
+
+If a `.claude/backlog.md` exists in the project:
+
+- **Before starting work:** read the backlog to understand current priorities and check if the task matches an existing item
+- **When starting an item:** mark it `in-progress` in the backlog
+- **When work is complete:** mark the item `done` (with today's date) and move it to the Done section
+- **If work produces new follow-ups:** add them to the backlog with appropriate priority
+- **If a blocker is discovered:** mark the item `blocked` with a note explaining why
+- **Trello sync:** if `TRELLO_API_KEY`, `TRELLO_TOKEN`, and `TRELLO_BOARD_ID` are set, all backlog changes are automatically pushed to the project's Trello board — no extra action needed
+
