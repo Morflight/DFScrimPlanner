@@ -19,6 +19,9 @@ stop:
 restart:
 	docker compose -f docker-compose.dev.yml restart app
 
+smoke:
+	@curl -fsk https://dfscrimplanner.local.com/ >/dev/null && echo "smoke: http ok" || (echo "smoke: http fail" && exit 1)
+
 test:
 	docker compose -f docker-compose.dev.yml exec app npx vitest run
 
