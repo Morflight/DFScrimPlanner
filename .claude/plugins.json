@@ -1,0 +1,8 @@
+{
+  "$schema": "https://morflight.github.io/claude-plugins/plugins.schema.json",
+  "type": "svelte-app",
+  "plugins": {
+    "claude-sveltekit": "*"
+  },
+  "notes": "Currently on Supabase (PostgreSQL + Auth). Postgres+porsager migration pending per workspace plan."
+}
